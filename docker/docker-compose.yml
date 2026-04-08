@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: devops-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../:/app
+      - monitoring_data:/app/data
+    restart: always
+
+volumes:
+  monitoring_data:
