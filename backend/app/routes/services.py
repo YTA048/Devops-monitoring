@@ -1,6 +1,6 @@
 from fastapi import APIRouter
-from backend.app.services.checker import check_service
-from backend.app.database.db import connect_db
+from ..services.checker import check_service
+from ..database.db import connect_db
 
 router = APIRouter()
 

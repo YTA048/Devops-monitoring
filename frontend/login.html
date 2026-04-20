@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<body style="background:#0f172a;color:white;text-align:center;margin-top:100px">
+
+<h1>?? Login</h1>
+
+<input id="u" placeholder="user"><br><br>
+<input id="p" type="password" placeholder="pass"><br><br>
+
+<button onclick="go()">Login</button>
+
+<script>
+function go(){
+    const token = btoa(
+        document.getElementById("u").value + ":" +
+        document.getElementById("p").value
+    );
+
+    fetch("http://localhost:8080/monitor", {
+        headers: {
+            "Authorization": "Basic " + token
+        },
+        mode: "cors"
+    })
+    .then(res => {
+        if(res.status === 200){
+            localStorage.setItem("auth", token);
+            window.location = "index.html";
+        } else {
+            alert("? Wrong login");
+        }
+    });
+}
+</script>
+
+</body>
+</html>

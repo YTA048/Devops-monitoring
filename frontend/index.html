@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body style="background:#0f172a;color:white;text-align:center">
+
+<h1>?? AI DevOps Dashboard</h1>
+<button onclick="load()">Refresh</button>
+
+<canvas id="chart" width="400"></canvas>
+
+<div id="alerts"></div>
+
+<script>
+function load(){
+
+    const token = localStorage.getItem("auth");
+
+    fetch("http://localhost:8080/monitor", {
+        headers: {
+            "Authorization": "Basic " + token
+        }
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        const labels = data.services.map(s => s.url);
+        const values = data.services.map(s => s.latency || 0);
+
+        new Chart(document.getElementById("chart"), {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Latency",
+                    data: values
+                }]
+            }
+        });
+
+        document.getElementById("alerts").innerHTML =
+            "<h3>Alerts</h3>" + data.alerts.join("<br>");
+
+    });
+}
+
+load();
+</script>
+
+</body>
+</html>

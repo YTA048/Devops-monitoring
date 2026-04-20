@@ -1,0 +1,133 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body {
+    font-family: Arial;
+    background: #0f172a;
+    color: white;
+    text-align: center;
+}
+
+input {
+    padding: 10px;
+    width: 300px;
+    border-radius: 5px;
+    border: none;
+}
+
+button {
+    padding: 10px;
+    margin: 10px;
+    cursor: pointer;
+    border-radius: 5px;
+    border: none;
+    background: #3b82f6;
+    color: white;
+}
+
+.card {
+    margin: 20px auto;
+    padding: 20px;
+    width: 400px;
+    border-radius: 10px;
+    background: #1e293b;
+}
+
+.log {
+    background: black;
+    padding: 10px;
+    margin-top: 20px;
+    height: 150px;
+    overflow-y: scroll;
+    font-size: 12px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🚀 DevOps Monitoring PRO</h1>
+
+<input id="urls" placeholder="google.com, facebook.com" />
+<br>
+<button onclick="start()">Start Monitoring</button>
+
+<canvas id="chart"></canvas>
+
+<div id="results"></div>
+<div class="log" id="log"></div>
+
+<script>
+let interval;
+let up = 0;
+let down = 0;
+
+const chart = new Chart(document.getElementById('chart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['UP', 'DOWN'],
+        datasets: [{
+            data: [0, 0],
+            backgroundColor: ['green', 'red']
+        }]
+    }
+});
+
+function log(msg) {
+    const logBox = document.getElementById("log");
+    logBox.innerHTML += msg + "<br>";
+}
+
+async function check(url) {
+    try {
+        const res = await fetch("http://backend:8000/check?url=" + url);
+        const data = await res.json();
+
+        if (data.status === "UP") up++;
+        else down++;
+
+        document.getElementById("results").innerHTML += 
+        `<div class="card">
+            <h3>${url}</h3>
+            <p class="${data.status === 'UP' ? 'up' : 'down'}">${data.status}</p>
+            <p>Code: ${data.code}</p>
+        </div>`;
+
+        log("✅ " + url + " → " + data.status);
+
+    } catch {
+        down++;
+        log("❌ " + url + " → ERROR");
+    }
+
+    chart.data.datasets[0].data = [up, down];
+    chart.update();
+}
+
+function start() {
+    const input = document.getElementById("urls").value;
+
+    if (!input) {
+        alert("Enter URLs");
+        return;
+    }
+
+    const urls = input.split(",");
+
+    if (interval) clearInterval(interval);
+
+    interval = setInterval(() => {
+        document.getElementById("results").innerHTML = "";
+        up = 0;
+        down = 0;
+
+        urls.forEach(u => check(u.trim()));
+    }, 5000);
+}
+</script>
+
+</body>
+</html>
