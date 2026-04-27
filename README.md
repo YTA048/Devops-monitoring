@@ -43,29 +43,24 @@ Le système est composé de :
 Ce projet démontre la mise en place d’une stack d’observabilité complète utilisée en entreprise.
 # DevOps Monitoring Platform
 
-## ?? Stack
-- FastAPI (Backend)
-- React (Frontend)
-- Docker Compose
-- Prometheus + Grafana
+## ?? Contexte
+Ce projet est une plateforme de monitoring DevOps permettant de superviser des applications en temps r�el.
+
+## ?? Objectifs
+- Monitoring avec Prometheus
+- Dashboards avec Grafana
+- Tracing avec Jaeger
+- Logs avec ELK
+
+## ??? Architecture
+
+Frontend ? Backend ? Observability Stack
+
+- Prometheus (Metrics)
+- Grafana (Dashboards)
 - Jaeger (Tracing)
-- ELK Stack (Logs)
-- AlertManager
+- ELK (Logs)
+- AlertManager (Alerts)
 
-## ?? Features
-- Metrics monitoring
-- Logs analysis
-- Distributed tracing
-- Alerting system
-
-## ?? Run
-docker compose up --build
-
-## ?? Access
-- Frontend: http://localhost:3001
-- Backend: http://localhost:8000
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000
-- Jaeger: http://localhost:16686
-- Kibana: http://localhost:5601
-
+## ?? Technologies
+FastAPI, React, Docker, Prometheus, Grafana, Jaeger, ELK
