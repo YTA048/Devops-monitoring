@@ -1,0 +1,18 @@
+                +------------------+
+                |   React Frontend |
+                +--------+---------+
+                         |
+                         v
+                +--------+---------+
+                |   FastAPI API    |
+                +--------+---------+
+                         |
+        -------------------------------------
+        |        |         |        |        |
+        v        v         v        v        v
+  Prometheus  Grafana   Jaeger   ELK   AlertManager
+ (Metrics)  (Dashboard) (Trace) (Logs)  (Alerts)
+
+        |
+        v
+  Node Exporter (System Metrics)
