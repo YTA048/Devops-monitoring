@@ -1,3 +1,11 @@
 fastapi
 uvicorn
-requests
+requestsopentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-exporter-otlp

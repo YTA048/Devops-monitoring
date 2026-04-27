@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
+
   backend:
     build: ./backend
-    container_name: backend
     ports:
       - "8000:8000"
     networks:
@@ -11,17 +11,15 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: frontend
     ports:
-      - "3001:80"
+      - "3000:80"
     networks:
       - monitoring
 
   prometheus:
     image: prom/prometheus
-    container_name: prometheus
     volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
     networks:
@@ -29,28 +27,47 @@ services:
 
   grafana:
     image: grafana/grafana
-    container_name: grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     networks:
       - monitoring
 
-  node-exporter:
-    image: prom/node-exporter
-    container_name: node-exporter
+  jaeger:
+    image: jaegertracing/all-in-one:1.53
     ports:
-      - "9100:9100"
+      - "16686:16686"
+      - "4318:4318"
+    networks:
+      - monitoring
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    networks:
+      - monitoring
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.3
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
+    ports:
+      - "5000:5000"
+    networks:
+      - monitoring
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.3
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
     networks:
       - monitoring
 
 networks:
   monitoring:
-  alertmanager:
-    image: prom/alertmanager
-    container_name: alertmanager
-    volumes:
-      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-    ports:
-      - "9093:9093"
-    networks:
-      - monitoring
