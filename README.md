@@ -64,3 +64,6 @@ Frontend ? Backend ? Observability Stack
 
 ## ?? Technologies
 FastAPI, React, Docker, Prometheus, Grafana, Jaeger, ELK
+
+## Architecture
+Frontend -> Backend -> Prometheus -> Grafana

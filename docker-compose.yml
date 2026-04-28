@@ -6,15 +6,11 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
-    networks:
-      - monitoring
 
   frontend:
     build: ./frontend
     ports:
       - "3000:80"
-    networks:
-      - monitoring
 
   prometheus:
     image: prom/prometheus
@@ -22,52 +18,8 @@ services:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
     ports:
       - "9090:9090"
-    networks:
-      - monitoring
 
   grafana:
     image: grafana/grafana
     ports:
       - "3001:3000"
-    networks:
-      - monitoring
-
-  jaeger:
-    image: jaegertracing/all-in-one:1.53
-    ports:
-      - "16686:16686"
-      - "4318:4318"
-    networks:
-      - monitoring
-
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.3
-    environment:
-      - discovery.type=single-node
-      - xpack.security.enabled=false
-    ports:
-      - "9200:9200"
-    networks:
-      - monitoring
-
-  logstash:
-    image: docker.elastic.co/logstash/logstash:8.11.3
-    volumes:
-      - ./logstash/pipeline:/usr/share/logstash/pipeline
-      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
-    ports:
-      - "5000:5000"
-    networks:
-      - monitoring
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.11.3
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-    ports:
-      - "5601:5601"
-    networks:
-      - monitoring
-
-networks:
-  monitoring:
