@@ -1,63 +1,84 @@
-# DevOps Monitoring Platform
+# Cahier des Charges ‚Äî DevOps Monitoring Platform
 
 ## 1. Contexte
 
-Dans les environnements modernes (cloud et microservices), les applications sont distribuÈes et complexes.  
-Les Èquipes DevOps ont besoin díoutils permettant de superviser les performances, dÈtecter les incidents et analyser rapidement les problËmes en production.
+Dans les environnements modernes (cloud et microservices), les applications sont distribu√©es et complexes. Les √©quipes DevOps ont besoin d'outils permettant de superviser les performances, d√©tecter les incidents et analyser rapidement les probl√®mes en production.
 
-Cependant, sans observabilitÈ, les systËmes deviennent difficiles ‡ maintenir et ‡ optimiser.
-
----
-
-## 2. ProblÈmatique
-
-Comment surveiller efficacement une application distribuÈe afin de :
-
-- DÈtecter rapidement les anomalies (latence, erreurs)
-- Comprendre líorigine des incidents
-- Garantir la disponibilitÈ des services
+Sans observabilit√©, les syst√®mes deviennent difficiles √† maintenir et √† optimiser, et le temps moyen de r√©solution (MTTR) explose lors des incidents.
 
 ---
 
-## 3. Solution proposÈe
+## 2. Probl√©matique
 
-Ce projet consiste ‡ dÈvelopper une plateforme de monitoring et díobservabilitÈ basÈe sur une stack DevOps moderne.
+Comment surveiller efficacement une application distribu√©e afin de :
+
+- D√©tecter rapidement les anomalies (latence, taux d'erreur, indisponibilit√©)
+- Comprendre l'origine des incidents gr√¢ce au tracing distribu√©
+- Centraliser les logs pour un debug rapide
+- Garantir la disponibilit√© et la performance des services
+- Alerter automatiquement les √©quipes en cas de d√©gradation
+
+---
+
+## 3. Solution propos√©e
+
+Ce projet consiste √† d√©velopper une plateforme de monitoring et d'observabilit√© bas√©e sur une stack DevOps moderne, conteneuris√©e et orchestr√©e via Docker Compose.
 
 Elle permet de :
 
-- Collecter des mÈtriques (Prometheus)
-- Visualiser les donnÈes (Grafana)
-- Tracer les requÍtes (Jaeger)
-- Centraliser les logs (ELK Stack)
-- GÈnÈrer des alertes automatiques (AlertManager)
+- Collecter des m√©triques applicatives et syst√®me (Prometheus + node-exporter)
+- Visualiser les donn√©es dans des dashboards (Grafana)
+- Tracer les requ√™tes de bout en bout (Jaeger + OpenTelemetry)
+- Centraliser les logs (ELK Stack : Elasticsearch + Logstash + Kibana)
+- G√©n√©rer des alertes automatiques (AlertManager)
+- Provisionner l'infrastructure cloud (Terraform sur AWS)
+- Automatiser l'int√©gration continue (GitHub Actions : lint, tests, build, scan s√©curit√©)
 
 ---
 
 ## 4. Architecture technique
 
-Le systËme est basÈ sur une architecture microservices :
+Le syst√®me est bas√© sur une architecture microservices conteneuris√©e.
 
-- Backend : FastAPI (API REST)
-- Frontend : React (dashboard utilisateur)
-- Orchestration : Docker Compose
+**Application :**
 
-Stack díobservabilitÈ :
+- Backend : FastAPI (Python 3.11) ‚Äî API REST instrument√©e + endpoint `/metrics` Prometheus
+- Frontend : React 18 + Vite ‚Äî dashboard utilisateur avec graphiques Chart.js
+- Base de donn√©es : PostgreSQL 15
+- Orchestration : Docker Compose (dev) / Terraform + EC2 (prod)
 
-- Prometheus : collecte des mÈtriques
-- Grafana : dashboards
-- Jaeger : tracing distribuÈ
-- Elasticsearch + Kibana : logs
-- AlertManager : gestion des alertes
+**Stack d'observabilit√© :**
+
+| Composant | R√¥le | Port |
+|-----------|------|------|
+| Prometheus | Collecte des m√©triques | 9090 |
+| Grafana | Dashboards de visualisation | 3001 |
+| Jaeger | Tracing distribu√© (OTLP) | 16686 |
+| Elasticsearch | Stockage des logs | 9200 |
+| Logstash | Pipeline de logs (TCP‚ÜíES) | 5000 |
+| Kibana | Exploration des logs | 5601 |
+| AlertManager | Gestion des alertes | 9093 |
+| node-exporter | M√©triques syst√®me h√¥te | 9100 |
+
+**Infrastructure as Code :**
+
+- Terraform : provisionnement AWS (VPC, Subnet, Security Group, EC2 t3.micro, user_data Docker)
+- AMI dynamique via `data "aws_ami"` (Amazon Linux 2023)
+
+**CI/CD :**
+
+- GitHub Actions : lint Python (pylint), tests unitaires (pytest), build Docker, scan vuln√©rabilit√©s (Trivy)
 
 ---
 
-## 5. Cas díusage
+## 5. Cas d'usage
 
-- Monitoring des performances díune API
-- DÈtection des services indisponibles
-- Analyse des temps de rÈponse
-- Debugging via tracing distribuÈ
-- Visualisation des logs en temps rÈel
+- Monitoring temps r√©el des performances d'une API (latence p50/p95/p99, RPS, taux d'erreur)
+- D√©tection automatique des services indisponibles (alertes < 1 min)
+- Analyse des temps de r√©ponse par endpoint
+- Debugging via tracing distribu√© (root cause analysis)
+- Visualisation des logs en temps r√©el et corr√©lation logs/m√©triques/traces
+- Notification automatique en cas de saturation CPU/m√©moire ou taux d'erreur √©lev√©
 
 ---
 
@@ -65,23 +86,36 @@ Stack díobservabilitÈ :
 
 - DevOps Engineers
 - Site Reliability Engineers (SRE)
-- DÈveloppeurs backend
+- D√©veloppeurs backend
+- √âquipes de support production
 
 ---
 
-## 7. Valeur ajoutÈe
+## 7. Valeur ajout√©e
 
-- Vision complËte du systËme (metrics + logs + traces)
-- DÈtection proactive des incidents
-- AmÈlioration de la fiabilitÈ et des performances
-- RÈduction du temps de diagnostic
+- Vision compl√®te du syst√®me (les 3 piliers de l'observabilit√© : metrics + logs + traces)
+- D√©tection proactive des incidents avant impact utilisateur
+- Am√©lioration de la fiabilit√© et des performances
+- R√©duction du temps de diagnostic (MTTR)
+- Stack 100% open source, pas de vendor lock-in
 
 ---
 
-## 8. …volutions possibles
+## 8. Contraintes techniques
 
-- DÈploiement cloud avec Terraform
-- CI/CD avancÈ
-- Ajout díIA pour dÈtection díanomalies
-- Auto-scaling basÈ sur mÈtriques
+- D√©ploiement conteneuris√© (Docker / Docker Compose)
+- Architecture microservices
+- Monitoring temps r√©el (scrape interval ‚â§ 15s)
+- Scalabilit√© horizontale possible
+- S√©curit√© : utilisateur non-root dans les containers, secrets via variables d'environnement, scan d'images
 
+---
+
+## 9. √âvolutions possibles
+
+- D√©ploiement cloud automatis√© via Terraform (AWS)
+- CI/CD avanc√© avec d√©ploiement continu (GitOps)
+- Int√©gration d'IA pour la d√©tection d'anomalies (Prophet, LSTM)
+- Auto-scaling bas√© sur les m√©triques Prometheus
+- Migration vers Kubernetes (Helm charts)
+- Service mesh (Istio / Linkerd) pour observabilit√© avanc√©e

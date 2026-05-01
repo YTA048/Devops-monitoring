@@ -1,0 +1,6 @@
+# Copier ce fichier en terraform.tfvars puis adapter les valeurs
+aws_region    = "eu-west-3"
+project_name  = "devops-monitoring"
+instance_type = "t3.micro"
+ssh_cidr      = "0.0.0.0/0"   # À RESTREINDRE en prod (ex: "X.X.X.X/32")
+key_name      = ""            # Nom de votre key pair AWS (optionnel)

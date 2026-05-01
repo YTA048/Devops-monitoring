@@ -1,3 +1,26 @@
-fastapi
-uvicorn
-requests
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+requests==2.31.0
+pydantic==2.6.1
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-multipart==0.0.9
+
+# Observabilité
+prometheus-client==0.20.0
+prometheus-fastapi-instrumentator==7.0.0
+
+# OpenTelemetry / Jaeger
+opentelemetry-api==1.23.0
+opentelemetry-sdk==1.23.0
+opentelemetry-exporter-otlp==1.23.0
+opentelemetry-instrumentation-fastapi==0.44b0
+opentelemetry-instrumentation-requests==0.44b0
+opentelemetry-instrumentation-logging==0.44b0
+
+# Logging structuré
+python-json-logger==2.0.7
+
+# DB
+sqlalchemy==2.0.27
+psycopg2-binary==2.9.9

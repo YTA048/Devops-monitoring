@@ -1,0 +1,115 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Backend up",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "targets": [{"expr": "up{job=\"backend\"}", "refId": "A"}],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "DOWN", "color": "red"}}, "type": "value"},
+            {"options": {"1": {"text": "UP", "color": "green"}}, "type": "value"}
+          ],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Total requests",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "targets": [{"expr": "sum(http_requests_total{job=\"backend\"})", "refId": "A"}]
+    },
+    {
+      "type": "stat",
+      "title": "Error rate (5m)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+      "targets": [{
+        "expr": "sum(rate(http_requests_total{job=\"backend\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"backend\"}[5m]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 0.01}, {"color": "red", "value": 0.05}]}}}
+    },
+    {
+      "type": "stat",
+      "title": "p95 latency (5m)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"backend\"}[5m])))",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests per second (by status)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [{
+        "expr": "sum by (status) (rate(http_requests_total{job=\"backend\"}[1m]))",
+        "legendFormat": "{{status}}",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency p50 / p95 / p99",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "histogram_quantile(0.50, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"backend\"}[5m])))", "legendFormat": "p50", "refId": "A"},
+        {"expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"backend\"}[5m])))", "legendFormat": "p95", "refId": "B"},
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"backend\"}[5m])))", "legendFormat": "p99", "refId": "C"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU host (node-exporter)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [{
+        "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[1m])) * 100)",
+        "legendFormat": "{{instance}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "max": 100}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory host",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [{
+        "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+        "legendFormat": "{{instance}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "percent", "max": 100}}
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["devops", "backend", "monitoring"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Backend Overview",
+  "uid": "backend-overview",
+  "version": 1,
+  "weekStart": ""
+}

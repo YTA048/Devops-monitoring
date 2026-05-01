@@ -1,18 +1,60 @@
 groups:
   - name: system_alerts
     rules:
-      - alert: HighCPU
-        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100) > 80
-        for: 2m
-        labels:
-          severity: warning
-        annotations:
-          summary: "High CPU usage detected"
-
-      - alert: ServiceDown
+      - alert: InstanceDown
         expr: up == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "Service is DOWN"
+          summary: "Instance {{ $labels.instance }} is down"
+          description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minute."
+
+      - alert: HighCPU
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% for more than 2 minutes (current value: {{ $value }}%)."
+
+      - alert: HighMemory
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85% (current: {{ $value }}%)."
+
+      - alert: DiskAlmostFull
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk almost full on {{ $labels.instance }}"
+          description: "Disk usage is above 90% on mountpoint {{ $labels.mountpoint }}."
+
+  - name: backend_alerts
+    rules:
+      - alert: BackendHighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: backend
+        annotations:
+          summary: "High error rate on backend"
+          description: "Backend error rate is above 5% (current: {{ $value | humanizePercentage }})."
+
+      - alert: BackendHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: backend
+        annotations:
+          summary: "Backend p95 latency above 1s"
+          description: "p95 latency is {{ $value }}s on the backend."
