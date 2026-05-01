@@ -147,7 +147,6 @@ jobs:
   terraform-validate:
     name: Terraform validate + fmt
     runs-on: ubuntu-latest
-    continue-on-error: true   # tolerant: pas de credentials AWS dans le CI
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -156,15 +155,28 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
+          terraform_wrapper: false
 
-      - name: Terraform fmt check
-        run: terraform -chdir=terraform fmt -check -recursive
-        continue-on-error: true
+      - name: Terraform fmt + init + validate (best-effort, never fails)
+        run: |
+          set +e
+          echo "::group::terraform fmt"
+          terraform -chdir=terraform fmt -check -recursive
+          FMT_RC=$?
+          echo "fmt exit: $FMT_RC"
+          echo "::endgroup::"
 
-      - name: Terraform init (no backend)
-        run: terraform -chdir=terraform init -backend=false -input=false
-        continue-on-error: true
+          echo "::group::terraform init"
+          terraform -chdir=terraform init -backend=false -input=false
+          INIT_RC=$?
+          echo "init exit: $INIT_RC"
+          echo "::endgroup::"
 
-      - name: Terraform validate
-        run: terraform -chdir=terraform validate
-        continue-on-error: true
+          echo "::group::terraform validate"
+          terraform -chdir=terraform validate
+          VAL_RC=$?
+          echo "validate exit: $VAL_RC"
+          echo "::endgroup::"
+
+          # Toujours sortir 0 - validation Terraform sans creds AWS reste indicative
+          exit 0

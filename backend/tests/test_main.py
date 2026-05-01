@@ -1,13 +1,7 @@
-"""Tests d'intégration des endpoints FastAPI."""
-import os
-import sys
+"""Tests d'integration des endpoints FastAPI."""
+from fastapi.testclient import TestClient
 
-# Permet d'importer main.py situé un cran plus haut
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from fastapi.testclient import TestClient  # noqa: E402
-
-from main import app  # noqa: E402
+from main import app
 
 client = TestClient(app)
 
