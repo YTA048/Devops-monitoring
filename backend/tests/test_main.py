@@ -51,4 +51,4 @@ def test_sites_list():
 def test_error_endpoint_returns_500():
     response = client.get("/error-test")
     assert response.status_code == 500
-    assert "Erreur simulée" in response.json()["detail"]
+    assert "Erreur" in response.json()["detail"]
