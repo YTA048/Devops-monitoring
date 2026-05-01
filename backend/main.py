@@ -1,13 +1,12 @@
 """
 DevOps Monitoring Platform - Backend FastAPI
 
-Expose une API REST instrumentée :
-  - Métriques Prometheus sur /metrics
-  - Tracing distribué OpenTelemetry vers Jaeger (OTLP)
-  - Logs JSON structurés envoyés à Logstash (TCP) + stdout
+Expose une API REST instrumentee :
+  - Metriques Prometheus sur /metrics
+  - Tracing distribue OpenTelemetry vers Jaeger (OTLP)
+  - Logs JSON structures envoyes a Logstash (TCP) + stdout
   - Healthchecks /health et /ready
 """
-import logging
 import os
 import time
 from contextlib import asynccontextmanager
@@ -22,36 +21,34 @@ from app.auth import router as auth_router
 from app.logging_config import setup_logging
 from app.tracing import setup_tracing
 
-# ─── Configuration ─────────────────────────────────────────────────────────
 SERVICE_NAME = os.getenv("SERVICE_NAME", "devops-monitoring-backend")
 JAEGER_ENDPOINT = os.getenv("JAEGER_ENDPOINT", "http://jaeger:4317")
 LOGSTASH_HOST = os.getenv("LOGSTASH_HOST", "logstash")
 LOGSTASH_PORT = int(os.getenv("LOGSTASH_PORT", "5000"))
 
-# Sites à monitorer (overridable via env SITES, séparés par des virgules)
 DEFAULT_SITES = [
-    "https://google.com", "https://github.com", "https://wikipedia.org",
-    "https://stackoverflow.com", "https://cloudflare.com",
+    "https://google.com",
+    "https://github.com",
+    "https://wikipedia.org",
+    "https://stackoverflow.com",
+    "https://cloudflare.com",
 ]
 SITES = os.getenv("SITES", ",".join(DEFAULT_SITES)).split(",")
 
-# ─── Logging ───────────────────────────────────────────────────────────────
 logger = setup_logging(SERVICE_NAME, LOGSTASH_HOST, LOGSTASH_PORT)
 
 
-# ─── Lifespan (startup / shutdown) ─────────────────────────────────────────
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     logger.info("Backend starting", extra={"service": SERVICE_NAME})
-    setup_tracing(SERVICE_NAME, JAEGER_ENDPOINT, app)
+    setup_tracing(SERVICE_NAME, JAEGER_ENDPOINT, _app)
     yield
     logger.info("Backend shutting down", extra={"service": SERVICE_NAME})
 
 
-# ─── App ───────────────────────────────────────────────────────────────────
 app = FastAPI(
     title="DevOps Monitoring Platform",
-    description="API de monitoring instrumentée (Prometheus + Jaeger + ELK)",
+    description="API de monitoring instrumentee (Prometheus + Jaeger + ELK)",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -64,14 +61,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Auth routes
 app.include_router(auth_router, prefix="/auth", tags=["auth"])
 
-# Métriques Prometheus auto-instrumentées (http_requests_total, latence, etc.)
 Instrumentator().instrument(app).expose(app, endpoint="/metrics", tags=["monitoring"])
 
 
-# ─── Endpoints ─────────────────────────────────────────────────────────────
 @app.get("/", tags=["root"])
 def root():
     """Page racine de l'API."""
@@ -96,13 +90,13 @@ def ready():
 
 @app.get("/sites", tags=["monitoring"])
 def list_sites():
-    """Liste des sites surveillés."""
+    """Liste des sites surveilles."""
     return {"sites": SITES, "count": len(SITES)}
 
 
 @app.get("/monitor", tags=["monitoring"])
 def monitor():
-    """Vérifie le statut HTTP de chacun des sites surveillés."""
+    """Verifie le statut HTTP de chacun des sites surveilles."""
     results = []
     for site in SITES:
         site = site.strip()
@@ -138,4 +132,4 @@ def monitor():
 def error_test():
     """Endpoint pour tester les alertes d'erreur (renvoie une 500)."""
     logger.error("error_test_endpoint_called")
-    raise HTTPException(status_code=500, detail="Erreur simulée pour tester les alertes")
+    raise HTTPException(status_code=500, detail="Erreur simulee pour tester les alertes")
