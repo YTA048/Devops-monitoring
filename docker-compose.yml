@@ -1,25 +1,217 @@
-version: '3.8'
+###############################################################################
+# DevOps Monitoring Platform - Stack complete
+#
+# Application : backend (FastAPI) + frontend (React) + db (PostgreSQL)
+# Metriques   : prometheus + node-exporter + cadvisor + alertmanager
+# Dashboards  : grafana
+# Tracing     : jaeger (all-in-one)
+# Logs        : elasticsearch + logstash + kibana
+###############################################################################
 
 services:
 
+  # --- Application ---
+  db:
+    image: postgres:15-alpine
+    container_name: db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-monitoring}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monitoring}
+      POSTGRES_DB: ${POSTGRES_DB:-monitoring}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-monitoring}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [monitoring]
+
   backend:
     build: ./backend
+    container_name: backend
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: devops-monitoring-backend
+      JAEGER_ENDPOINT: http://jaeger:4317
+      LOGSTASH_HOST: logstash
+      LOGSTASH_PORT: 5000
+      JWT_SECRET: ${JWT_SECRET:-please-change-me-32-chars-minimum-secret}
+      DATABASE_URL: postgresql://monitoring:monitoring@db:5432/monitoring
     ports:
       - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [monitoring]
 
   frontend:
-    build: ./frontend
+    build: ./frontend/pro-ui
+    container_name: frontend
+    restart: unless-stopped
+    environment:
+      VITE_API_URL: http://localhost:8000
     ports:
       - "3000:80"
+    depends_on:
+      - backend
+    networks: [monitoring]
 
+  # --- Metriques (Prometheus stack) ---
   prometheus:
-    image: prom/prometheus
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
     ports:
       - "9090:9090"
+    networks: [monitoring]
 
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "9093:9093"
+    networks: [monitoring]
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter
+    restart: unless-stopped
+    command:
+      - "--path.rootfs=/host"
+    volumes:
+      - "/:/host:ro,rslave"
+    ports:
+      - "9100:9100"
+    networks: [monitoring]
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    ports:
+      - "8080:8080"
+    networks: [monitoring]
+
+  # --- Dashboards ---
   grafana:
-    image: grafana/grafana
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
     ports:
       - "3001:3000"
+    depends_on:
+      - prometheus
+    networks: [monitoring]
+
+  # --- Tracing distribue ---
+  jaeger:
+    image: jaegertracing/all-in-one:1.55
+    container_name: jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    networks: [monitoring]
+
+  # --- ELK Stack (logs) ---
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    networks: [monitoring]
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.13.0
+    container_name: logstash
+    restart: unless-stopped
+    volumes:
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    ports:
+      - "5000:5000/tcp"
+      - "9600:9600"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [monitoring]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.0
+    container_name: kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [monitoring]
+
+###############################################################################
+# Volumes & networks
+###############################################################################
+
+volumes:
+  db_data:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+  es_data:
+
+networks:
+  monitoring:
+    driver: bridge

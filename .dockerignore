@@ -1,9 +1,53 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+npm-debug.log*
+dist/
+build/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+history.json
+
+# Secrets
 .env
+.env.*
+*.pem
+*.key
+
+# Git / IDE / OS
 .git
 .gitignore
-node_modules
-monitoring.db
+.github/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Tests / CI
+tests/
+.coverage
