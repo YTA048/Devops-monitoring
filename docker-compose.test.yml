@@ -1,0 +1,52 @@
+###############################################################################
+# Environnement de test isole - utilise pour la CI et les tests locaux.
+#
+# Ne lance que le strict minimum :
+#   - db (postgres) avec un volume EPHEMERIQUE (tmpfs)
+#   - backend avec JAEGER/LOGSTASH desactives
+# Aucun monitoring/tracing/logs : on teste juste l'API.
+#
+# Utilisation :
+#   docker compose -f docker-compose.test.yml up -d
+#   docker compose -f docker-compose.test.yml exec backend pytest
+#   docker compose -f docker-compose.test.yml down -v
+###############################################################################
+
+services:
+  db-test:
+    image: postgres:15-alpine
+    container_name: db-test
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: test
+    tmpfs:
+      - /var/lib/postgresql/data    # volatile, perdu a chaque arret
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks: [test]
+
+  backend-test:
+    build: ./backend
+    container_name: backend-test
+    environment:
+      SERVICE_NAME: backend-test
+      JAEGER_ENDPOINT: ""           # disable tracing
+      LOGSTASH_HOST: localhost
+      LOGSTASH_PORT: 9999           # invalid port -> handler fail-safe
+      JWT_SECRET: test-secret-32-chars-minimum-please
+      DATABASE_URL: postgresql://test:test@db-test:5432/test
+      DISABLE_TRACING: "true"
+    depends_on:
+      db-test:
+        condition: service_healthy
+    command:
+      ["sh", "-c", "pip install pytest pytest-cov httpx && pytest tests/ --cov=. --cov-report=term"]
+    networks: [test]
+
+networks:
+  test:
+    driver: bridge
