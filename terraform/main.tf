@@ -57,6 +57,18 @@ variable "key_name" {
   default     = ""
 }
 
+variable "git_repo_url" {
+  description = "URL du repo Git a cloner sur l'EC2 au boot"
+  type        = string
+  default     = "https://github.com/YTA048/Devops-monitoring.git"
+}
+
+variable "git_branch" {
+  description = "Branche Git a checkout"
+  type        = string
+  default     = "main"
+}
+
 ###############################################################################
 # Data sources
 ###############################################################################
@@ -239,11 +251,14 @@ resource "aws_instance" "monitoring" {
   user_data = <<-EOF
     #!/bin/bash
     set -euxo pipefail
+    exec > >(tee /var/log/user-data.log | logger -t user-data -s 2>/dev/console) 2>&1
+
+    echo "[user-data] Starting bootstrap"
 
     # Update system
     dnf update -y
 
-    # Install Docker
+    # Install Docker + git
     dnf install -y docker git
     systemctl enable --now docker
     usermod -aG docker ec2-user
@@ -259,10 +274,15 @@ resource "aws_instance" "monitoring" {
     echo "vm.max_map_count=262144" >> /etc/sysctl.conf
     sysctl -p
 
-    # Clone the project (URL à ajuster)
+    # Clone repo + docker compose up
     cd /home/ec2-user
-    # git clone https://github.com/<user>/devops-monitoring.git
-    # cd devops-monitoring && docker compose up -d
+    sudo -u ec2-user git clone --branch ${var.git_branch} ${var.git_repo_url} devops-monitoring
+    cd devops-monitoring
+    docker compose up -d
+
+    echo "[user-data] Bootstrap complete"
+    echo "[user-data] Services accessibles sur les ports : 3000 (frontend), 8000 (backend),"
+    echo "             9090 (prometheus), 3001 (grafana), 16686 (jaeger), 5601 (kibana)"
   EOF
 
   root_block_device {
