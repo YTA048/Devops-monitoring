@@ -1,38 +1,111 @@
+###############################################################################
+# AlertManager - Configuration des receivers
+#
+# Routes :
+#   critical -> Discord + email (priorite haute)
+#   warning  -> Discord uniquement
+#   default  -> Discord (catch-all)
+#
+# IMPORTANT : remplacer DISCORD_WEBHOOK_URL et SMTP_* par les vraies valeurs
+#             OU les passer via variables d'environnement Docker.
+###############################################################################
+
 global:
   resolve_timeout: 5m
+  smtp_smarthost: '${SMTP_HOST:-smtp.gmail.com}:${SMTP_PORT:-587}'
+  smtp_from: '${SMTP_FROM:-alerts@devops-monitoring.local}'
+  smtp_auth_username: '${SMTP_USER:-}'
+  smtp_auth_password: '${SMTP_PASSWORD:-}'
+  smtp_require_tls: true
 
+###############################################################################
+# Templates - format des messages
+###############################################################################
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+###############################################################################
+# Routing tree
+###############################################################################
 route:
-  group_by: ['alertname', 'severity']
+  receiver: discord-default
+  group_by: ['alertname', 'severity', 'instance']
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 1h
-  receiver: default
+
   routes:
-    - match:
-        severity: critical
-      receiver: critical
+    # Alertes critiques -> Discord + Email
+    - matchers:
+        - severity = "critical"
+      receiver: critical-channel
       continue: true
+      group_wait: 10s
+      repeat_interval: 30m
 
+    # Alertes warning -> Discord seul
+    - matchers:
+        - severity = "warning"
+      receiver: discord-default
+      repeat_interval: 2h
+
+###############################################################################
+# Receivers
+###############################################################################
 receivers:
-  - name: default
-    # En prod : configurer email/slack/webhook ici
-    webhook_configs:
-      - url: 'http://backend:8000/alerts/webhook'
+  # ---- DEFAULT : Discord webhook ----
+  - name: 'discord-default'
+    discord_configs:
+      - webhook_url: '${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/REPLACE_ME/REPLACE_ME}'
         send_resolved: true
+        title: '{{ if eq .Status "firing" }}🚨 ALERT{{ else }}✅ RESOLVED{{ end }} - {{ .CommonLabels.alertname }}'
+        message: |
+          **Severity:** {{ .CommonLabels.severity }}
+          **Instance:** {{ .CommonLabels.instance }}
+          **Status:** {{ .Status }}
+          {{ range .Alerts }}
+          **Summary:** {{ .Annotations.summary }}
+          **Description:** {{ .Annotations.description }}
+          **Started:** {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+          {{ end }}
 
-  - name: critical
-    webhook_configs:
-      - url: 'http://backend:8000/alerts/webhook'
+  # ---- CRITICAL : Discord + Email ----
+  - name: 'critical-channel'
+    discord_configs:
+      - webhook_url: '${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/REPLACE_ME/REPLACE_ME}'
         send_resolved: true
-    # Exemple Slack (à activer en prod) :
-    # slack_configs:
-    #   - api_url: 'https://hooks.slack.com/services/XXX/YYY/ZZZ'
-    #     channel: '#alerts'
-    #     send_resolved: true
+        title: '🔴 CRITICAL - {{ .CommonLabels.alertname }}'
+        message: |
+          **@everyone Critical alert!**
+          **Severity:** {{ .CommonLabels.severity }}
+          **Instance:** {{ .CommonLabels.instance }}
+          {{ range .Alerts }}
+          **Summary:** {{ .Annotations.summary }}
+          **Description:** {{ .Annotations.description }}
+          {{ end }}
 
+    email_configs:
+      - to: '${ALERT_EMAIL_TO:-yassinetaifi905@gmail.com}'
+        send_resolved: true
+        headers:
+          Subject: '[CRITICAL] {{ .CommonLabels.alertname }} on {{ .CommonLabels.instance }}'
+        html: |
+          <h2>Critical Alert</h2>
+          <p><b>Alert:</b> {{ .CommonLabels.alertname }}</p>
+          <p><b>Severity:</b> {{ .CommonLabels.severity }}</p>
+          <p><b>Instance:</b> {{ .CommonLabels.instance }}</p>
+          {{ range .Alerts }}
+          <p><b>Summary:</b> {{ .Annotations.summary }}</p>
+          <p><b>Description:</b> {{ .Annotations.description }}</p>
+          <p><b>Started:</b> {{ .StartsAt }}</p>
+          {{ end }}
+
+###############################################################################
+# Inhibition rules
+###############################################################################
 inhibit_rules:
-  - source_match:
-      severity: 'critical'
-    target_match:
-      severity: 'warning'
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
     equal: ['alertname', 'instance']
