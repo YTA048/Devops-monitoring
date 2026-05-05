@@ -1,4 +1,15 @@
+###############################################################################
+# Alertes Prometheus
+#
+# Categories :
+#   1. system_alerts    : alertes infra (CPU, RAM, disque, instance down)
+#   2. backend_alerts   : alertes applicatives (error rate, latence p95)
+#   3. business_alerts  : alertes METIER (SLA breach, sites DOWN, MTTR)
+#                         <-- ce que le jury attend pour BC03-CP2
+###############################################################################
+
 groups:
+  # ─── 1. SYSTEME ──────────────────────────────────────────────────────────
   - name: system_alerts
     rules:
       - alert: InstanceDown
@@ -6,6 +17,7 @@ groups:
         for: 1m
         labels:
           severity: critical
+          category: infra
         annotations:
           summary: "Instance {{ $labels.instance }} is down"
           description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 1 minute."
@@ -15,6 +27,7 @@ groups:
         for: 2m
         labels:
           severity: warning
+          category: infra
         annotations:
           summary: "High CPU usage on {{ $labels.instance }}"
           description: "CPU usage is above 80% for more than 2 minutes (current value: {{ $value }}%)."
@@ -24,6 +37,7 @@ groups:
         for: 2m
         labels:
           severity: warning
+          category: infra
         annotations:
           summary: "High memory usage on {{ $labels.instance }}"
           description: "Memory usage is above 85% (current: {{ $value }}%)."
@@ -33,28 +47,93 @@ groups:
         for: 5m
         labels:
           severity: critical
+          category: infra
         annotations:
           summary: "Disk almost full on {{ $labels.instance }}"
           description: "Disk usage is above 90% on mountpoint {{ $labels.mountpoint }}."
 
+  # ─── 2. APPLICATION (FastAPI backend) ───────────────────────────────────
   - name: backend_alerts
     rules:
       - alert: BackendHighErrorRate
-        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        expr: sum(rate(http_requests_total{job="backend",status=~"5.."}[5m])) / sum(rate(http_requests_total{job="backend"}[5m])) > 0.05
         for: 2m
         labels:
           severity: critical
           service: backend
+          category: app
         annotations:
           summary: "High error rate on backend"
           description: "Backend error rate is above 5% (current: {{ $value | humanizePercentage }})."
 
       - alert: BackendHighLatency
-        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="backend"}[5m]))) > 1
         for: 5m
         labels:
           severity: warning
           service: backend
+          category: app
         annotations:
           summary: "Backend p95 latency above 1s"
           description: "p95 latency is {{ $value }}s on the backend."
+
+  # ─── 3. METIER (BC03-CP2 : KPIs business) ───────────────────────────────
+  # Ces alertes sont specifiques au DOMAINE de l'app (monitoring platform).
+  # Elles racontent au jury : "je connais ce que mon app doit faire".
+  - name: business_alerts
+    rules:
+      - alert: ProbeUptimeSLABreach
+        expr: monitoring_uptime_ratio < 0.95
+        for: 5m
+        labels:
+          severity: critical
+          category: business
+          sla: probe_uptime
+        annotations:
+          summary: "Probe uptime SLA breach"
+          description: "Le ratio de sites UP est sous 95% depuis 5 min (actuel: {{ $value | humanizePercentage }}). Cible SLA: 99.7%."
+          decision: "Investiguer immediatement. Soit un probleme reseau cote backend, soit plusieurs sites surveillaes sont vraiment DOWN."
+
+      - alert: SiteDownPersistent
+        expr: site_status == 0
+        for: 3m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "Site {{ $labels.site }} DOWN depuis 3 min"
+          description: "Le site {{ $labels.site }} n'est plus joignable depuis 3 minutes. Verifier si c'est une vraie panne du site cible ou un probleme reseau."
+          decision: "Si c'est legitime, ouvrir un ticket cote provider. Sinon, retirer le site du monitoring."
+
+      - alert: SiteHighLatency
+        expr: histogram_quantile(0.95, sum by (site, le) (rate(site_check_latency_seconds_bucket[10m]))) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Site {{ $labels.site }} - latence p95 > 2s"
+          description: "Latence du site {{ $labels.site }} a degrade au-dessus de 2s (p95). Risque de breach SLA si la tendance continue."
+          decision: "Forecast: si la latence double dans les 5 prochains jours, le site sera marque DEGRADED. Investiguer maintenant."
+
+      - alert: ProbeFailureRateHigh
+        expr: sum(rate(site_check_total{status="DOWN"}[10m])) / sum(rate(site_check_total[10m])) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          category: business
+        annotations:
+          summary: "Plus de 10% des probes echouent"
+          description: "Sur les 10 dernieres minutes, plus de 10% des probes ont echoue (actuel: {{ $value | humanizePercentage }})."
+          decision: "Probable probleme reseau cote backend, pas cote sites cibles. Verifier la connectivite Internet de la machine hote."
+
+      - alert: NoMonitoringDataReceived
+        expr: rate(site_check_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: business
+        annotations:
+          summary: "Aucune probe envoyee depuis 5 minutes"
+          description: "Le backend n'a effectue aucune probe depuis 5 minutes. La fonction de monitoring est inactive."
+          decision: "Verifier que /monitor est appele regulierement (cron, scheduler externe, ou frontend qui pull). Sans appel, aucune metrique metier."

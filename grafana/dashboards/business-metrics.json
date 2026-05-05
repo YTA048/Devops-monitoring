@@ -1,0 +1,271 @@
+{
+  "annotations": {"list": []},
+  "description": "Dashboard metier (BC03-CP2) : raconte ce que fait l'application, pas juste l'infra",
+  "editable": true,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "row",
+      "title": "📊 BUSINESS METRICS - Ce que fait mon app",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Sites surveilles",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
+      "targets": [{"expr": "sites_monitored_total", "refId": "A"}],
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "fixed", "fixedColor": "blue"}, "unit": "short"}
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Probe Uptime SLA (temps reel)",
+      "description": "Ratio de sites UP / total. Cible: 99.7%",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 4, "y": 1},
+      "targets": [{"expr": "monitoring_uptime_ratio", "refId": "A"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.9},
+              {"color": "green", "value": 0.99}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background", "graphMode": "area"}
+    },
+    {
+      "type": "stat",
+      "title": "Probes / heure",
+      "description": "Cadence de surveillance",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 9, "y": 1},
+      "targets": [{"expr": "sum(rate(site_check_total[1h])) * 3600", "refId": "A"}],
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 0}}
+    },
+    {
+      "type": "stat",
+      "title": "Sites DOWN (24h)",
+      "description": "Nombre d'evenements DOWN sur 24h. Si > 0, enquete.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 14, "y": 1},
+      "targets": [{"expr": "sum(increase(site_check_total{status=\"DOWN\"}[24h]))", "refId": "A"}],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          }
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "type": "stat",
+      "title": "Alertes firing maintenant",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 5, "x": 19, "y": 1},
+      "targets": [{"expr": "sum(ALERTS{alertstate=\"firing\"})", "refId": "A"}],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 3}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "row",
+      "title": "⚙ APPLICATION METRICS - Mes utilisateurs voient-ils des problemes ?",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Backend error rate (5m)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 6},
+      "targets": [{
+        "expr": "sum(rate(http_requests_total{job=\"backend\",status=~\"5..\"}[5m])) / sum(rate(http_requests_total{job=\"backend\"}[5m]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 0.01},
+              {"color": "red", "value": 0.05}
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Latency p95",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 6},
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job=\"backend\"}[5m])))",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "type": "stat",
+      "title": "Requests / sec",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 12, "y": 6},
+      "targets": [{
+        "expr": "sum(rate(http_requests_total{job=\"backend\"}[1m]))",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "reqps"}}
+    },
+    {
+      "type": "stat",
+      "title": "Backend uptime",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 4, "w": 6, "x": 18, "y": 6},
+      "targets": [{"expr": "up{job=\"backend\"}", "refId": "A"}],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"text": "DOWN", "color": "red"}}, "type": "value"},
+            {"options": {"1": {"text": "UP", "color": "green"}}, "type": "value"}
+          ]
+        }
+      },
+      "options": {"colorMode": "background"}
+    },
+    {
+      "type": "row",
+      "title": "📈 TRENDS & FORECAST - Anticiper avant que ca casse",
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 10},
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Statut des sites (1=UP, 0.5=DEGRADED, 0=DOWN)",
+      "description": "Visualise la fiabilite de chaque site dans le temps. Permet d'anticiper les pannes recurrentes.",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 11},
+      "targets": [{
+        "expr": "site_status",
+        "legendFormat": "{{site}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "custom": {"drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 30}
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latence par site (p95) - Trend last 30m",
+      "description": "Si une courbe monte, le site se degrade -> debug avant que les utilisateurs se plaignent",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 11},
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum by (site, le) (rate(site_check_latency_seconds_bucket[5m])))",
+        "legendFormat": "{{site}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {"defaults": {"unit": "s"}}
+    },
+    {
+      "type": "timeseries",
+      "title": "Probes/min par statut (trend)",
+      "description": "Si DOWN augmente -> probleme reseau ou cible KO",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 19},
+      "targets": [{
+        "expr": "sum by (status) (rate(site_check_total[1m])) * 60",
+        "legendFormat": "{{status}}",
+        "refId": "A"
+      }],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"drawStyle": "line", "fillOpacity": 30, "stacking": {"mode": "normal"}},
+          "color": {"mode": "palette-classic"}
+        },
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "UP"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]},
+          {"matcher": {"id": "byName", "options": "DEGRADED"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]},
+          {"matcher": {"id": "byName", "options": "DOWN"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]}
+        ]
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Uptime ratio - SLA trend (last 6h)",
+      "description": "Forecast: si la courbe descend, on va breach le SLA dans X heures",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 19},
+      "targets": [
+        {"expr": "monitoring_uptime_ratio", "legendFormat": "Uptime ratio (live)", "refId": "A"},
+        {"expr": "avg_over_time(monitoring_uptime_ratio[1h])", "legendFormat": "Moyenne 1h (trend)", "refId": "B"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.95},
+              {"color": "green", "value": 0.99}
+            ]
+          },
+          "custom": {"thresholdsStyle": {"mode": "line"}}
+        }
+      }
+    }
+  ],
+  "refresh": "15s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["business", "kpi", "bc03"],
+  "templating": {"list": []},
+  "time": {"from": "now-30m", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Business Metrics — Monitoring Platform",
+  "uid": "business-metrics",
+  "version": 1,
+  "weekStart": ""
+}

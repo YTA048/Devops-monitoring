@@ -100,9 +100,13 @@ services:
       - "9093:9093"
     networks: [monitoring]
 
+  # node-exporter : metriques systeme de l'host (CPU, RAM, disque)
+  # Linux-only car necessite des mounts /proc et /sys qui n'existent pas sur Windows.
+  # Activer avec : docker compose --profile linux up -d
   node-exporter:
     image: prom/node-exporter:v1.7.0
     container_name: node-exporter
+    profiles: ["linux"]
     restart: unless-stopped
     command:
       - "--path.rootfs=/host"
@@ -112,9 +116,12 @@ services:
       - "9100:9100"
     networks: [monitoring]
 
+  # cAdvisor : metriques par container Docker
+  # Linux-only (mounts /var/run/docker.sock, /sys, etc.)
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: cadvisor
+    profiles: ["linux"]
     restart: unless-stopped
     privileged: true
     devices:

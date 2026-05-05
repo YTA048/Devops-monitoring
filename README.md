@@ -55,8 +55,16 @@ Plateforme de monitoring et d'observabilité **clé en main**, basée sur une st
 ```bash
 git clone <ce-repo>
 cd devops-monitoring
+cp .env.example .env       # editer avec vos vrais Discord webhook / passwords
+
+# Sur Windows / macOS (Docker Desktop)
 docker compose up -d
+
+# Sur Linux (tout, y compris node-exporter + cAdvisor)
+docker compose --profile linux up -d
 ```
+
+> **Note Windows/macOS** : `node-exporter` et `cAdvisor` nécessitent des mounts Linux (`/proc`, `/sys`, `/var/run/docker.sock` avec propagation `rslave`) qui n'existent pas sur ces OS. Ils sont donc derrière un profile `linux` et activés uniquement via `--profile linux`. Sur Windows/macOS, Prometheus marquera ces 2 targets DOWN — c'est attendu.
 
 Compter ~2 minutes au premier lancement (build images + warm-up Elasticsearch).
 
@@ -181,6 +189,8 @@ Pour nettoyer l'historique Git (supprimer `node_modules/` et `monitoring.db` de 
 
 - [Cahier des charges (CDC)](docs/CDC.md)
 - [Architecture détaillée](docs/architecture.md)
+- [BC03-CP2 — Business Metrics & Capacity Planning](docs/business-metrics.md)
+- [Runbook tests end-to-end](docs/RUNBOOK.md)
 
 ---
 
