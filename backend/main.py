@@ -21,6 +21,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.auth import router as auth_router
 from app.logging_config import setup_logging
+from app.scheduler import start_scheduler
 from app.tracing import setup_tracing
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "devops-monitoring-backend")
@@ -84,8 +85,20 @@ SITES_TOTAL.set(len(SITES))
 async def lifespan(_app: FastAPI):
     logger.info("Backend starting", extra={"service": SERVICE_NAME})
     setup_tracing(SERVICE_NAME, JAEGER_ENDPOINT, _app)
+    # Demarre le scheduler pour les probes automatiques en arriere-plan
+    scheduler = start_scheduler(_run_probes_now)
     yield
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
     logger.info("Backend shutting down", extra={"service": SERVICE_NAME})
+
+
+def _run_probes_now():
+    """Execute les probes une fois (appelee par le scheduler)."""
+    try:
+        monitor()
+    except Exception as exc:  # pylint: disable=broad-except
+        logger.error("scheduled_probe_failed", extra={"error": str(exc)})
 
 
 app = FastAPI(

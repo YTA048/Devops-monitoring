@@ -46,9 +46,13 @@ variable "instance_type" {
 }
 
 variable "ssh_cidr" {
-  description = "CIDR autorisé pour SSH (à restreindre en prod)"
+  description = "CIDR autorise pour SSH. Le defaut 127.0.0.1/32 empeche tout acces SSH externe ; il faut explicitement passer l'IP du poste d'administration ou du bastion via terraform.tfvars."
   type        = string
-  default     = "0.0.0.0/0"
+  default     = "127.0.0.1/32" # secure-by-default : aucun acces SSH tant que non surchargé
+  validation {
+    condition     = var.ssh_cidr != "0.0.0.0/0"
+    error_message = "ssh_cidr ne doit jamais etre 0.0.0.0/0. Restreindre a l'IP de l'admin ou du bastion (ex: 203.0.113.42/32)."
+  }
 }
 
 variable "key_name" {
