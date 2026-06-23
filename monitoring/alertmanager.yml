@@ -4,54 +4,41 @@
 # Quand Prometheus détecte une anomalie, il envoie l'alerte à Alertmanager.
 # Alertmanager décide qui prévenir et comment.
 #
-# Ici : alertes critiques → Discord + email
-#        alertes warning  → Discord uniquement
+# Ici : toutes les alertes → email (111562@ecole-it.com via Outlook)
 ###############################################################################
 
 global:
   resolve_timeout: 5m
+  smtp_smarthost: "${SMTP_HOST}:${SMTP_PORT}"
+  smtp_from: "${SMTP_FROM}"
+  smtp_auth_username: "${SMTP_USER}"
+  smtp_auth_password: "${SMTP_PASSWORD}"
+  smtp_require_tls: true
 
 route:
-  receiver: discord
+  receiver: email
   group_by: ['alertname', 'instance']
-  group_wait: 30s         # attend 30s avant d'envoyer (regroupe les alertes)
-  group_interval: 5m      # attend 5m avant de ré-envoyer un groupe existant
-  repeat_interval: 1h     # répète l'alerte toutes les heures si pas résolue
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 1h
 
   routes:
-    # Alertes critiques : Discord + email
     - matchers:
         - severity = "critical"
-      receiver: critical
+      receiver: email
       repeat_interval: 30m
 
 receivers:
-
-  # Notification Discord uniquement (warning)
-  - name: discord
-    discord_configs:
-      - webhook_url: "${DISCORD_WEBHOOK_URL}"
-        send_resolved: true
-        title: '{{ if eq .Status "firing" }}🟡 ALERTE{{ else }}✅ RÉSOLUE{{ end }} — {{ .CommonLabels.alertname }}'
-        message: |
-          **Site / Instance :** {{ .CommonLabels.instance }}
-          {{ range .Alerts }}**Détail :** {{ .Annotations.description }}{{ end }}
-
-  # Notification Discord + email (critical)
-  - name: critical
-    discord_configs:
-      - webhook_url: "${DISCORD_WEBHOOK_URL}"
-        send_resolved: true
-        title: '{{ if eq .Status "firing" }}🔴 CRITIQUE{{ else }}✅ RÉSOLUE{{ end }} — {{ .CommonLabels.alertname }}'
-        message: |
-          **Site / Instance :** {{ .CommonLabels.instance }}
-          {{ range .Alerts }}**Détail :** {{ .Annotations.description }}{{ end }}
+  - name: email
     email_configs:
       - to: "${ALERT_EMAIL_TO}"
-        from: "${SMTP_FROM}"
-        smarthost: "${SMTP_HOST}:${SMTP_PORT}"
-        auth_username: "${SMTP_USER}"
-        auth_password: "${SMTP_PASSWORD}"
         send_resolved: true
         headers:
-          Subject: '[CRITIQUE] {{ .CommonLabels.alertname }} — {{ .CommonLabels.instance }}'
+          Subject: '{{ if eq .Status "firing" }}🔴 ALERTE{{ else }}✅ RÉSOLUE{{ end }} — {{ .CommonLabels.alertname }}'
+        body: |
+          Alerte : {{ .CommonLabels.alertname }}
+          Instance : {{ .CommonLabels.instance }}
+          Sévérité : {{ .CommonLabels.severity }}
+          {{ range .Alerts }}
+          Détail : {{ .Annotations.description }}
+          {{ end }}
