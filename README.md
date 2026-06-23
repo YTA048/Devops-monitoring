@@ -2,20 +2,6 @@
 
 Outil de surveillance pour une agence web qui héberge les sites de ses clients.
 
-## Stack open source
-
-| Conteneur | Image | Version | Licence | Rôle |
-|-----------|-------|---------|---------|------|
-| **blackbox-exporter** | [prom/blackbox-exporter](https://github.com/prometheus/blackbox_exporter) | v0.25.0 | Apache 2.0 | Sonde HTTP des sites clients |
-| **node-exporter** | [prom/node-exporter](https://github.com/prometheus/node_exporter) | v1.7.0 | Apache 2.0 | Métriques système (CPU, RAM, disque) |
-| **prometheus** | [prom/prometheus](https://github.com/prometheus/prometheus) | v2.51.0 | Apache 2.0 | Collecte et stockage des métriques |
-| **grafana** | [grafana/grafana](https://github.com/grafana/grafana) | v10.4.0 | AGPL 3.0 | Dashboards et visualisation |
-| **alertmanager** | [prom/alertmanager](https://github.com/prometheus/alertmanager) | v0.27.0 | Apache 2.0 | Envoi des alertes (email, Discord) |
-
-> Tous les outils sont **open source** et maintenus par la communauté Prometheus / Grafana Labs.
-
----
-
 ## Ce que ça fait
 
 | Besoin | Réponse technique |
