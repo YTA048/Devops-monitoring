@@ -25,20 +25,16 @@ services:
       - "9115:9115"
     networks: [monitoring]
 
-  # Expose les métriques système du serveur Linux (CPU, RAM, disque, réseau)
+  # Expose les métriques système du serveur (CPU, RAM, disque, réseau)
+  # Sur Linux : métriques réelles du serveur hôte
+  # Sur Windows/macOS : métriques du conteneur Docker uniquement (normal)
   node-exporter:
     image: prom/node-exporter:v1.7.0
     container_name: node-exporter
     restart: unless-stopped
-    command:
-      - "--path.rootfs=/host"
-    volumes:
-      - "/:/host:ro,rslave"
     ports:
       - "9100:9100"
     networks: [monitoring]
-    # Note Windows/macOS : node-exporter fonctionne uniquement sur Linux.
-    # Sur Windows, retirer le volume /host et la commande --path.rootfs.
 
   # Collecte les métriques toutes les 30s en interrogeant les exporters
   prometheus:
@@ -75,7 +71,7 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     depends_on:
       - prometheus
     networks: [monitoring]
