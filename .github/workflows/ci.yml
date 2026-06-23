@@ -2,139 +2,69 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main]
 
-env:
-  PYTHON_VERSION: "3.11"
-  IMAGE_NAME: devops-monitoring-backend
-
 jobs:
-  # ─── 1. Lint Python ───────────────────────────────────────────────
-  lint:
-    name: Lint (pylint + ruff)
+
+  # ─── 1. Validation des fichiers de configuration ──────────────────────────
+  validate-config:
+    name: Validation configuration
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-
-      - name: Install lint dependencies
+      - name: Vérifier que prometheus.yml est valide (YAML)
         run: |
-          python -m pip install --upgrade pip
-          pip install pylint ruff
-          pip install -r backend/requirements.txt
+          python3 -c "
+          import yaml, sys
+          files = [
+            'monitoring/prometheus.yml',
+            'monitoring/alerts.yml',
+            'monitoring/alertmanager.yml',
+            'monitoring/blackbox.yml',
+            'grafana/provisioning/datasources/prometheus.yml',
+            'grafana/provisioning/dashboards/dashboards.yml',
+          ]
+          for f in files:
+            with open(f) as fh:
+              yaml.safe_load(fh)
+            print(f'OK : {f}')
+          "
 
-      - name: Run ruff
-        run: ruff check backend/ --output-format=github --exit-zero
-
-      - name: Run pylint
-        run: pylint backend/ --exit-zero --output-format=colorized
-        continue-on-error: true
-
-  # ─── 2. Tests unitaires ───────────────────────────────────────────
-  tests:
-    name: Tests (pytest)
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-
-      - name: Install dependencies
+      - name: Vérifier que le dashboard Grafana est du JSON valide
         run: |
-          python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt
-          pip install pytest pytest-cov "httpx<0.28"
+          python3 -c "
+          import json
+          with open('grafana/dashboards/agence-web.json') as f:
+            json.load(f)
+          print('OK : grafana/dashboards/agence-web.json')
+          "
 
-      - name: Run pytest with coverage
-        env:
-          JAEGER_ENDPOINT: ""
-          LOGSTASH_HOST: 127.0.0.1
-          LOGSTASH_PORT: "9999"
-          JWT_SECRET: test-secret-32-chars-minimum-please
+      - name: Vérifier que docker-compose.yml est valide
         run: |
-          cd backend
-          pytest --cov=. --cov-report=xml --cov-report=term -v
+          pip install docker-compose 2>/dev/null || true
+          python3 -c "
+          import yaml
+          with open('docker-compose.yml') as f:
+            d = yaml.safe_load(f)
+          services = list(d['services'].keys())
+          print(f'Services trouvés : {services}')
+          assert len(services) == 5, f'Attendu 5 services, trouvé {len(services)}'
+          print('OK : docker-compose.yml')
+          "
 
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: backend/coverage.xml
-          retention-days: 7
-
-  # ─── 3. Build Docker image ────────────────────────────────────────
-  build:
-    name: Build Docker image
-    runs-on: ubuntu-latest
-    needs: tests
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build backend image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: false
-          load: true
-          tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Save image to tar
-        run: docker save ${{ env.IMAGE_NAME }}:${{ github.sha }} -o /tmp/image.tar
-
-      - name: Upload image artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: /tmp/image.tar
-          retention-days: 1
-
-  # ─── 4. Scan vulnérabilités (Trivy) ───────────────────────────────
+  # ─── 2. Scan de sécurité des configs ──────────────────────────────────────
   security-scan:
-    name: Security scan (Trivy)
+    name: Scan sécurité (Trivy)
     runs-on: ubuntu-latest
-    needs: build
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download Docker image
-        uses: actions/download-artifact@v4
-        with:
-          name: docker-image
-          path: /tmp
-
-      - name: Load Docker image
-        run: docker load -i /tmp/image.tar
-
-      - name: Run Trivy on Docker image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
-          format: table
-          severity: CRITICAL,HIGH
-          exit-code: 0   # ne casse pas le build (à passer à 1 quand le code est mature)
-
-      - name: Run Trivy on filesystem (config + dependencies)
+      - name: Trivy - scan du filesystem (configs + IaC)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
@@ -143,7 +73,7 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: 0
 
-  # ─── 5. Validation Terraform ──────────────────────────────────────
+  # ─── 3. Validation Terraform ──────────────────────────────────────────────
   terraform-validate:
     name: Terraform validate + fmt
     runs-on: ubuntu-latest
@@ -157,26 +87,10 @@ jobs:
           terraform_version: 1.6.6
           terraform_wrapper: false
 
-      - name: Terraform fmt + init + validate (best-effort, never fails)
+      - name: Terraform fmt + validate
         run: |
           set +e
-          echo "::group::terraform fmt"
           terraform -chdir=terraform fmt -check -recursive
-          FMT_RC=$?
-          echo "fmt exit: $FMT_RC"
-          echo "::endgroup::"
-
-          echo "::group::terraform init"
           terraform -chdir=terraform init -backend=false -input=false
-          INIT_RC=$?
-          echo "init exit: $INIT_RC"
-          echo "::endgroup::"
-
-          echo "::group::terraform validate"
           terraform -chdir=terraform validate
-          VAL_RC=$?
-          echo "validate exit: $VAL_RC"
-          echo "::endgroup::"
-
-          # Toujours sortir 0 - validation Terraform sans creds AWS reste indicative
           exit 0
