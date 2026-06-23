@@ -1,3 +1,0 @@
-# Dépendances Python du projet (backend uniquement).
-# Voir backend/requirements.txt pour la liste complète.
--r backend/requirements.txt

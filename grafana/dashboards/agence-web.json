@@ -6,12 +6,216 @@
   "refresh": "30s",
   "schemaVersion": 38,
   "panels": [
+
+    {
+      "id": 10,
+      "title": "KPI 1 — Sites en ligne (UP)",
+      "description": "Nombre de sites clients actuellement en ligne",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(probe_success)",
+          "legendFormat": "Sites UP"
+        }
+      ]
+    },
+
+    {
+      "id": 11,
+      "title": "KPI 2 — Sites hors ligne (DOWN)",
+      "description": "Nombre de sites clients actuellement hors ligne",
+      "type": "stat",
+      "gridPos": { "x": 4, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(1 - probe_success)",
+          "legendFormat": "Sites DOWN"
+        }
+      ]
+    },
+
+    {
+      "id": 12,
+      "title": "KPI 3 — Latence moyenne",
+      "description": "Temps de réponse moyen de tous les sites clients",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 2 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "avg(probe_duration_seconds)",
+          "legendFormat": "Latence moy."
+        }
+      ]
+    },
+
+    {
+      "id": 13,
+      "title": "KPI 4 — CPU Serveur",
+      "description": "Utilisation CPU du serveur qui héberge les sites",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+          "legendFormat": "CPU %"
+        }
+      ]
+    },
+
+    {
+      "id": 14,
+      "title": "KPI 5 — RAM Serveur",
+      "description": "Utilisation mémoire du serveur",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+          "legendFormat": "RAM %"
+        }
+      ]
+    },
+
+    {
+      "id": 15,
+      "title": "KPI 6 — Disque Serveur",
+      "description": "Espace disque utilisé sur le serveur",
+      "type": "stat",
+      "gridPos": { "x": 20, "y": 0, "w": 4, "h": 4 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 75 },
+              { "color": "red", "value": 90 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "(1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\",mountpoint=\"/\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\",mountpoint=\"/\"})) * 100",
+          "legendFormat": "Disque %"
+        }
+      ]
+    },
+
     {
       "id": 1,
-      "title": "Sites clients — État (UP / DOWN)",
+      "title": "État des sites clients (UP = vert / DOWN = rouge)",
       "description": "1 = site en ligne, 0 = site hors ligne",
       "type": "stat",
-      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 4 },
+      "gridPos": { "x": 0, "y": 4, "w": 24, "h": 4 },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
         "colorMode": "background",
@@ -21,7 +225,10 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            { "type": "value", "options": {
+              "0": { "text": "DOWN", "color": "red" },
+              "1": { "text": "UP", "color": "green" }
+            }}
           ],
           "thresholds": {
             "mode": "absolute",
@@ -42,12 +249,13 @@
         }
       ]
     },
+
     {
       "id": 2,
       "title": "Temps de réponse des sites (secondes)",
-      "description": "Temps qu'a mis le site à répondre à la sonde HTTP",
+      "description": "Seuil alerte : 2s — au-dessus le jury reçoit un email",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 4, "w": 16, "h": 8 },
+      "gridPos": { "x": 0, "y": 8, "w": 16, "h": 8 },
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -74,16 +282,18 @@
         }
       ]
     },
+
     {
       "id": 3,
-      "title": "Disponibilité des sites (dernières 24h)",
-      "description": "Pourcentage du temps où le site était UP",
+      "title": "Disponibilité 24h par site (%)",
+      "description": "SLA : objectif 99% minimum",
       "type": "stat",
-      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 8 },
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
       "options": {
         "reduceOptions": { "calcs": ["mean"] },
         "colorMode": "background",
-        "textMode": "value_and_name"
+        "textMode": "value_and_name",
+        "orientation": "vertical"
       },
       "fieldConfig": {
         "defaults": {
@@ -107,107 +317,13 @@
         }
       ]
     },
+
     {
       "id": 4,
-      "title": "CPU Serveur (%)",
-      "description": "Pourcentage du processeur utilisé sur le serveur",
-      "type": "gauge",
-      "gridPos": { "x": 0, "y": 12, "w": 8, "h": 6 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 70 },
-              { "color": "red", "value": 85 }
-            ]
-          }
-        }
-      },
-      "targets": [
-        {
-          "datasource": "Prometheus",
-          "expr": "100 - (avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
-          "legendFormat": "CPU"
-        }
-      ]
-    },
-    {
-      "id": 5,
-      "title": "RAM Serveur (%)",
-      "description": "Pourcentage de la mémoire vive utilisée",
-      "type": "gauge",
-      "gridPos": { "x": 8, "y": 12, "w": 8, "h": 6 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 70 },
-              { "color": "red", "value": 85 }
-            ]
-          }
-        }
-      },
-      "targets": [
-        {
-          "datasource": "Prometheus",
-          "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
-          "legendFormat": "RAM"
-        }
-      ]
-    },
-    {
-      "id": 6,
-      "title": "Disque Serveur (%)",
-      "description": "Pourcentage de l'espace disque utilisé",
-      "type": "gauge",
-      "gridPos": { "x": 16, "y": 12, "w": 8, "h": 6 },
-      "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] }
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent",
-          "min": 0,
-          "max": 100,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 75 },
-              { "color": "red", "value": 90 }
-            ]
-          }
-        }
-      },
-      "targets": [
-        {
-          "datasource": "Prometheus",
-          "expr": "(1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\",mountpoint=\"/\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\",mountpoint=\"/\"})) * 100",
-          "legendFormat": "Disque /"
-        }
-      ]
-    },
-    {
-      "id": 7,
-      "title": "CPU — Historique (dernières 24h)",
+      "title": "CPU Serveur — Historique",
+      "description": "Alerte si > 80% pendant 2 minutes",
       "type": "timeseries",
-      "gridPos": { "x": 0, "y": 18, "w": 12, "h": 7 },
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 7 },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
@@ -230,11 +346,13 @@
         }
       ]
     },
+
     {
-      "id": 8,
-      "title": "RAM — Historique (dernières 24h)",
+      "id": 5,
+      "title": "RAM Serveur — Historique",
+      "description": "Alerte si > 85% pendant 2 minutes",
       "type": "timeseries",
-      "gridPos": { "x": 12, "y": 18, "w": 12, "h": 7 },
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 7 },
       "fieldConfig": {
         "defaults": {
           "unit": "percent",
@@ -257,6 +375,7 @@
         }
       ]
     }
+
   ],
   "time": { "from": "now-24h", "to": "now" }
 }

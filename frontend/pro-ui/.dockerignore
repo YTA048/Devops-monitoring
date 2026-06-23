@@ -1,9 +1,0 @@
-node_modules
-dist
-.vite
-.env
-.env.*
-.git
-.gitignore
-README.md
-*.log
