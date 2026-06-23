@@ -41,7 +41,7 @@ cp .env.example .env
 docker compose up -d
 
 # 3. Ouvrir Grafana
-# http://localhost:3000   login: admin / admin
+# http://localhost:3001   login: admin / admin
 ```
 
 > **Note Linux :** `node-exporter` nécessite les montages `/proc` et `/sys` du système hôte.
@@ -51,7 +51,7 @@ docker compose up -d
 
 | Service | URL | Rôle |
 |---------|-----|------|
-| Grafana | http://localhost:3000 | Dashboards (admin/admin) |
+| Grafana | http://localhost:3001 | Dashboards (admin/admin) |
 | Prometheus | http://localhost:9090 | Données brutes + alertes |
 | Alertmanager | http://localhost:9093 | Statut des notifications |
 | Blackbox Exporter | http://localhost:9115 | Résultats des sondes HTTP |
