@@ -1,142 +1,139 @@
-# Architecture détaillée
+# Architecture — Kit de monitoring agence web
 
-## Vue d'ensemble
+## Contexte
 
-La plateforme suit une architecture microservices conteneurisée, avec une séparation claire entre l'**application** (frontend + backend + base de données) et la **stack d'observabilité** (Prometheus + Grafana + ELK + Jaeger + AlertManager).
-
-Tous les services communiquent via un réseau Docker dédié `monitoring`.
+Une agence web héberge les sites de ses clients sur un serveur Linux.
+Elle a besoin de savoir en temps réel :
+- Si les sites des clients sont en ligne ou en panne
+- Si les sites répondent rapidement
+- Si le serveur qui les héberge est en bonne santé (CPU, RAM, disque)
+- Recevoir une alerte immédiate quand quelque chose ne va pas
 
 ---
 
-## Diagramme de flux
+## Schéma d'architecture
 
 ```
-                     ┌──────────────────┐
-                     │   Utilisateur    │
-                     └────────┬─────────┘
-                              │ HTTPS (en prod) / HTTP (dev)
-                              ▼
-                     ┌──────────────────┐
-                     │ React (nginx :80)│
-                     │  /login          │
-                     │  /dashboard      │
-                     └────────┬─────────┘
-                              │ REST + JWT
-                              ▼
-              ┌────────────────────────────────┐
-              │  FastAPI Backend (uvicorn:8000)│
-              │  /auth/login, /monitor, /...   │
-              │  /metrics  /health  /ready     │
-              └─┬──────────┬───────────┬───────┘
-                │          │           │
-       métriques│          │ logs JSON │ traces OTLP gRPC
-        (scrape)│          │ (TCP)     │ (port 4317)
-                ▼          ▼           ▼
-        ┌────────────┐ ┌─────────┐ ┌────────┐
-        │ Prometheus │ │Logstash │ │ Jaeger │
-        │  :9090     │ │ :5000   │ │ :16686 │
-        └─────┬──────┘ └────┬────┘ └────────┘
-              │             │
-              ▼             ▼
-        ┌──────────┐ ┌───────────────┐ ┌────────┐
-        │ Grafana  │ │ Elasticsearch │ │ Kibana │
-        │  :3001   │ │ :9200         │ │ :5601  │
-        └──────────┘ └───────────────┘ └────────┘
-              │
-              ▼
-        ┌──────────────┐
-        │ AlertManager │
-        │  :9093       │
-        └──────┬───────┘
-               │ webhook / slack / email
-               ▼
-        notifications
+Sites clients (internet)
+  https://client-1.fr
+  https://client-2.com          ← sondes HTTP toutes les 30s
+  https://client-3.fr
+         │
+         ▼
+┌─────────────────────────┐
+│   blackbox-exporter     │  Port 9115
+│   Sonde HTTP GET        │  → probe_success (0/1)
+│   Mesure la latence     │  → probe_duration_seconds
+└────────────┬────────────┘
+             │ métriques
+             ▼
+┌─────────────────────────┐     ┌─────────────────────────┐
+│      prometheus         │◄────│     node-exporter       │
+│      Port 9090          │     │     Port 9100           │
+│  Collecte toutes les    │     │  CPU, RAM, Disque       │
+│  métriques (30s)        │     │  du serveur Linux       │
+│  Évalue les alertes     │     └─────────────────────────┘
+└────────┬────────────────┘
+         │              │ alertes
+         ▼              ▼
+┌──────────────┐  ┌──────────────────┐
+│   grafana    │  │  alertmanager    │
+│   Port 3001  │  │  Port 9093       │
+│  Dashboards  │  │  → Email Outlook │
+│  6 KPI       │  │  (111562@        │
+│  visuels     │  │   ecole-it.com)  │
+└──────────────┘  └──────────────────┘
 ```
 
 ---
 
-## Les 3 piliers de l'observabilité
+## Les 5 services et leur rôle
 
-### 1. Métriques (Prometheus)
-
-- Le backend expose `/metrics` au format texte Prometheus, instrumenté automatiquement via `prometheus-fastapi-instrumentator`.
-- Métriques exposées : `http_requests_total`, `http_request_duration_seconds_bucket`, `process_resident_memory_bytes`, `python_gc_objects_collected_total`...
-- `node-exporter` fournit les métriques système (CPU, RAM, disque) de l'hôte.
-- `cAdvisor` fournit les métriques par container.
-- Prometheus scrape toutes les 15s, conserve 15 jours d'historique.
-
-### 2. Logs (ELK Stack)
-
-- Le backend envoie ses logs en **JSON structuré** sur deux sorties :
-  - `stdout` (capturé par Docker)
-  - TCP vers Logstash (port 5000) — best-effort, ne casse pas l'app si Logstash est down
-- Logstash applique des filtres (parsing date, tag des erreurs) et indexe dans Elasticsearch (index `logs-<service>-<date>`).
-- Kibana permet l'exploration et la création de dashboards de logs.
-- Les logs incluent automatiquement le `trace_id` OpenTelemetry pour la corrélation logs ↔ traces.
-
-### 3. Traces (Jaeger + OpenTelemetry)
-
-- OpenTelemetry instrumente automatiquement FastAPI et `requests` (toutes les requêtes HTTP entrantes et sortantes sont tracées).
-- Les spans sont exportés via OTLP gRPC (port 4317) vers Jaeger all-in-one.
-- L'UI Jaeger permet de visualiser les traces, identifier les goulets d'étranglement, etc.
+| Service | Image Docker | Port | Rôle |
+|---------|-------------|------|------|
+| **blackbox-exporter** | prom/blackbox-exporter:v0.25.0 | 9115 | Sonde HTTP des sites clients |
+| **node-exporter** | prom/node-exporter:v1.7.0 | 9100 | Métriques système du serveur |
+| **prometheus** | prom/prometheus:v2.51.0 | 9090 | Collecte, stockage, alertes |
+| **grafana** | grafana/grafana:10.4.0 | 3001 | Dashboards visuels |
+| **alertmanager** | prom/alertmanager:v0.27.0 | 9093 | Envoi des notifications |
 
 ---
 
-## Alerting
+## Les 6 KPI surveillés
 
-`AlertManager` reçoit les alertes de Prometheus définies dans `monitoring/alerts/alerts.yml`.
+| KPI | Métrique Prometheus | Seuil d'alerte |
+|-----|--------------------|-----------------|
+| Sites UP / DOWN | `probe_success` | 0 = alerte immédiate |
+| Latence des sites | `probe_duration_seconds` | > 2s → warning |
+| Disponibilité 24h | `avg_over_time(probe_success[24h])` | < 99% → warning |
+| CPU serveur | `node_cpu_seconds_total` | > 80% pendant 2 min |
+| RAM serveur | `node_memory_MemAvailable_bytes` | > 85% pendant 2 min |
+| Disque serveur | `node_filesystem_avail_bytes` | > 90% pendant 5 min |
 
-### Alertes système (`node-exporter`)
+---
 
-| Alerte | Condition | Sévérité |
-|--------|-----------|----------|
-| `InstanceDown` | `up == 0` pendant 1 min | critical |
-| `HighCPU` | CPU > 80% pendant 2 min | warning |
-| `HighMemory` | Mémoire > 85% pendant 2 min | warning |
-| `DiskAlmostFull` | Disque > 90% pendant 5 min | critical |
+## Flux d'une alerte
 
-### Alertes applicatives (`backend`)
-
-| Alerte | Condition | Sévérité |
-|--------|-----------|----------|
-| `BackendHighErrorRate` | Taux d'erreur 5xx > 5% pendant 2 min | critical |
-| `BackendHighLatency` | p95 latency > 1s pendant 5 min | warning |
-
-### Routage
-
-`AlertManager` envoie par défaut sur le webhook `http://backend:8000/alerts/webhook`. En production, configurer Slack / email / PagerDuty dans `monitoring/alertmanager/alertmanager.yml`.
+```
+1. Prometheus détecte : probe_success == 0 depuis 1 minute
+2. Prometheus envoie l'alerte à Alertmanager
+3. Alertmanager groupe les alertes (30s d'attente)
+4. Alertmanager envoie un email à 111562@ecole-it.com
+5. Sujet : "[CRITIQUE] SiteDown — https://client.fr"
+6. L'alerte se répète toutes les 30 min si le site reste DOWN
+7. Un email "RÉSOLUE" est envoyé quand le site revient
+```
 
 ---
 
 ## Sécurité
 
-- **Authentification** : JWT (HS256), endpoint `/auth/login` avec bcrypt sur les mots de passe.
-- **Containers** : utilisateur non-root pour le backend (`appuser`), nginx non-root pour le frontend.
-- **Build** : Dockerfile multi-stage pour minimiser la surface d'attaque.
-- **CI** : Trivy scanne les images Docker + le filesystem à chaque push (CRITICAL + HIGH).
-- **Secrets** : variables d'environnement (`JWT_SECRET`, `POSTGRES_PASSWORD`), jamais commitées (`.gitignore`).
+- **Aucun secret dans le code** : tous les mots de passe sont dans `.env` (exclu de Git)
+- **`.gitignore`** inclut `.env`, `*.tfvars`, `.terraform/`, `*.tfstate`
+- **Terraform** : Security Group AWS restreint (SSH uniquement depuis IP autorisée)
+- **Volumes persistants** : données Prometheus et Grafana conservées entre redémarrages
 
 ---
 
 ## Déploiement production (Terraform AWS)
 
-L'infrastructure est entièrement décrite dans `terraform/main.tf` :
+L'infrastructure est décrite dans `terraform/main.tf` :
 
 - VPC dédié (10.0.0.0/16) avec Internet Gateway
-- Subnet public dans une AZ
-- Security Group ouvrant SSH + ports d'observabilité
-- EC2 t3.micro Amazon Linux 2023 (AMI résolue dynamiquement)
-- User-data installant Docker + Docker Compose
-- Volume EBS chiffré (gp3, 30 GB)
+- Subnet public
+- Security Group : SSH restreint + ports monitoring
+- EC2 t3.micro Amazon Linux 2023
+- User-data : installe Docker + clone le repo + lance la stack automatiquement
 
-Outputs : URLs publiques de Grafana, Prometheus, Kibana, Jaeger.
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+# Renseigner les variables AWS
+terraform init
+terraform plan
+terraform apply
+```
 
 ---
 
-## Évolutions futures
+## Environnements
 
-- Migration vers Kubernetes (Helm charts pour Prometheus, Grafana, ELK déjà disponibles)
-- Service mesh (Istio / Linkerd) pour observabilité réseau
-- ML pour la détection d'anomalies (Prophet, LSTM)
-- Auto-scaling EC2 basé sur métriques Prometheus (custom CloudWatch metrics)
-- HTTPS avec Let's Encrypt + reverse proxy Traefik
+| Environnement | Fichier | Ports | Usage |
+|--------------|---------|-------|-------|
+| **Production** | `docker-compose.yml` | 3001, 9090, 9093, 9100, 9115 | Surveillance réelle |
+| **Test** | `docker-compose.test.yml` | 13001, 19090, 19093, 19100, 19115 | Validation + démo alertes |
+
+L'environnement de test inclut un site fictif (`site-en-panne-test.xyz`) pour déclencher l'alerte `SiteDown` sans impacter la production.
+
+---
+
+## Provisionnement automatisé
+
+Le script `scripts/provision/setup-serveur.sh` :
+1. Met à jour le système (apt/yum)
+2. Installe Docker et Docker Compose
+3. Clone le repo depuis GitHub
+4. Crée le fichier `.env`
+5. Lance la stack avec `docker compose up -d`
+
+Le script `scripts/verify/check-services.sh` vérifie que tous les services répondent après déploiement.

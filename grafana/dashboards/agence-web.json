@@ -204,7 +204,7 @@
       "targets": [
         {
           "datasource": "Prometheus",
-          "expr": "(1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\",mountpoint=\"/\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\",mountpoint=\"/\"})) * 100",
+          "expr": "max((1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|rootfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|rootfs\"})) * 100)",
           "legendFormat": "Disque %"
         }
       ]

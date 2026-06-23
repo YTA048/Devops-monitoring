@@ -1,0 +1,83 @@
+###############################################################################
+# Environnement de TEST — distinct de la production
+#
+# Différences avec docker-compose.yml (production) :
+#   - Ports différents pour éviter les conflits
+#   - Sites de test surveillés (URLs fictives pour tester les alertes)
+#   - Données de test isolées (volumes séparés)
+#
+# Usage :
+#   docker compose -f docker-compose.test.yml up -d
+###############################################################################
+
+services:
+
+  blackbox-exporter-test:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: blackbox-test
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    ports:
+      - "19115:9115"
+    networks: [monitoring-test]
+
+  node-exporter-test:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter-test
+    restart: unless-stopped
+    ports:
+      - "19100:9100"
+    networks: [monitoring-test]
+
+  prometheus-test:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus-test
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=1d"
+    volumes:
+      - ./monitoring/prometheus.test.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_test_data:/prometheus
+    ports:
+      - "19090:9090"
+    networks: [monitoring-test]
+
+  grafana-test:
+    image: grafana/grafana:10.4.0
+    container_name: grafana-test
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: test
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_test_data:/var/lib/grafana
+    ports:
+      - "13001:3000"
+    networks: [monitoring-test]
+
+  alertmanager-test:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager-test
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "19093:9093"
+    networks: [monitoring-test]
+
+volumes:
+  prometheus_test_data:
+  grafana_test_data:
+
+networks:
+  monitoring-test:
+    driver: bridge
