@@ -1,0 +1,18 @@
+###############################################################################
+# Blackbox Exporter - Configuration des sondes HTTP
+#
+# Ce fichier définit comment on sonde les sites clients.
+# Le module "http_2xx" fait une requête GET et considère le site UP
+# si la réponse est entre 200 et 299.
+###############################################################################
+
+modules:
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: []   # vide = accepte tous les codes 2xx
+      method: GET
+      follow_redirects: true
+      preferred_ip_protocol: "ip4"

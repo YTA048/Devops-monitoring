@@ -1,0 +1,67 @@
+###############################################################################
+# Règles d'alerte Prometheus
+#
+# Deux catégories :
+#   1. sites_clients  : alertes sur les sites des clients (up/down, lenteur)
+#   2. serveur        : alertes sur la santé du serveur (CPU, RAM, disque)
+###############################################################################
+
+groups:
+
+  # ── 1. SITES CLIENTS ──────────────────────────────────────────────────────
+  - name: sites_clients
+    rules:
+
+      # Un site ne répond plus depuis 1 minute
+      - alert: SiteDown
+        expr: probe_success == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "🔴 Site DOWN : {{ $labels.instance }}"
+          description: "Le site {{ $labels.instance }} ne répond plus depuis 1 minute. Vérifier si le serveur d'hébergement est en panne."
+
+      # Un site répond mais est trop lent (plus de 2 secondes)
+      - alert: SiteLent
+        expr: probe_duration_seconds > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "🟡 Site lent : {{ $labels.instance }}"
+          description: "Le site {{ $labels.instance }} répond en {{ $value | humanizeDuration }} (seuil : 2s). Risque de mauvaise expérience utilisateur."
+
+  # ── 2. SERVEUR ────────────────────────────────────────────────────────────
+  - name: serveur
+    rules:
+
+      # CPU utilisé à plus de 80% depuis 2 minutes
+      - alert: CPUEleve
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "🟡 CPU élevé sur {{ $labels.instance }}"
+          description: "Le CPU est à {{ $value | humanize }}% depuis 2 minutes (seuil : 80%)."
+
+      # RAM utilisée à plus de 85%
+      - alert: MemoireElevee
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "🟡 Mémoire élevée sur {{ $labels.instance }}"
+          description: "La RAM est utilisée à {{ $value | humanize }}% (seuil : 85%)."
+
+      # Disque rempli à plus de 90%
+      - alert: DisquePlein
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes)) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "🔴 Disque presque plein sur {{ $labels.instance }}"
+          description: "Le disque {{ $labels.mountpoint }} est rempli à {{ $value | humanize }}% (seuil : 90%)."

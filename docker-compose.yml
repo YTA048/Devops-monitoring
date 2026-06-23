@@ -1,71 +1,46 @@
 ###############################################################################
-# DevOps Monitoring Platform - Stack complete
+# Kit de monitoring - Agence web
 #
-# Application : backend (FastAPI) + frontend (React) + db (PostgreSQL)
-# Metriques   : prometheus + node-exporter + cadvisor + alertmanager
-# Dashboards  : grafana
-# Tracing     : jaeger (all-in-one)
-# Logs        : elasticsearch + logstash + kibana
+# Use case : surveiller les sites des clients, le serveur, et recevoir
+#            des alertes quand quelque chose ne va pas.
+#
+# Services :
+#   - blackbox-exporter  : sonde les URLs des clients (HTTP up/down + latence)
+#   - node-exporter      : métriques système du serveur (CPU, RAM, disque)
+#   - prometheus         : collecte et stocke toutes les métriques
+#   - grafana            : dashboards visuels
+#   - alertmanager       : envoie les alertes (Discord ou email)
 ###############################################################################
 
 services:
 
-  # --- Application ---
-  db:
-    image: postgres:15-alpine
-    container_name: db
+  # Sonde les sites clients : fait une requête HTTP et mesure si ça répond
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: blackbox-exporter
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-monitoring}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-monitoring}
-      POSTGRES_DB: ${POSTGRES_DB:-monitoring}
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - ./monitoring/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
     ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-monitoring}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      - "9115:9115"
     networks: [monitoring]
 
-  backend:
-    build: ./backend
-    container_name: backend
+  # Expose les métriques système du serveur Linux (CPU, RAM, disque, réseau)
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: node-exporter
     restart: unless-stopped
-    environment:
-      SERVICE_NAME: devops-monitoring-backend
-      JAEGER_ENDPOINT: http://jaeger:4317
-      LOGSTASH_HOST: logstash
-      LOGSTASH_PORT: 5000
-      # Tous les secrets viennent du fichier .env (gitignored).
-      # Aucune valeur de fallback hardcodee : si .env est absent, la valeur reste vide
-      # et le service refusera de demarrer, ce qui est le comportement souhaite.
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET doit etre defini dans .env}
-      DATABASE_URL: postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
-      SCHEDULER_ENABLED: ${SCHEDULER_ENABLED:-true}
-      PROBE_INTERVAL_SECONDS: ${PROBE_INTERVAL_SECONDS:-30}
+    command:
+      - "--path.rootfs=/host"
+    volumes:
+      - "/:/host:ro,rslave"
     ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
+      - "9100:9100"
     networks: [monitoring]
+    # Note Windows/macOS : node-exporter fonctionne uniquement sur Linux.
+    # Sur Windows, retirer le volume /host et la commande --path.rootfs.
 
-  frontend:
-    build: ./frontend/pro-ui
-    container_name: frontend
-    restart: unless-stopped
-    environment:
-      VITE_API_URL: http://localhost:8000
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    networks: [monitoring]
-
-  # --- Metriques (Prometheus stack) ---
+  # Collecte les métriques toutes les 30s en interrogeant les exporters
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: prometheus
@@ -77,70 +52,16 @@ services:
       - "--web.enable-lifecycle"
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./monitoring/alerts:/etc/prometheus/alerts:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
+    depends_on:
+      - blackbox-exporter
+      - node-exporter
     networks: [monitoring]
 
-  alertmanager:
-    image: prom/alertmanager:v0.27.0
-    container_name: alertmanager
-    restart: unless-stopped
-    environment:
-      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-https://discord.com/api/webhooks/REPLACE_ME/REPLACE_ME}
-      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_FROM: ${SMTP_FROM:-alerts@devops-monitoring.local}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-yassinetaifi905@gmail.com}
-    command:
-      - "--config.file=/etc/alertmanager/alertmanager.yml"
-      - "--storage.path=/alertmanager"
-    volumes:
-      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-      - alertmanager_data:/alertmanager
-    ports:
-      - "9093:9093"
-    networks: [monitoring]
-
-  # node-exporter : metriques systeme de l'host (CPU, RAM, disque)
-  # Linux-only car necessite des mounts /proc et /sys qui n'existent pas sur Windows.
-  # Activer avec : docker compose --profile linux up -d
-  node-exporter:
-    image: prom/node-exporter:v1.7.0
-    container_name: node-exporter
-    profiles: ["linux"]
-    restart: unless-stopped
-    command:
-      - "--path.rootfs=/host"
-    volumes:
-      - "/:/host:ro,rslave"
-    ports:
-      - "9100:9100"
-    networks: [monitoring]
-
-  # cAdvisor : metriques par container Docker
-  # Linux-only (mounts /var/run/docker.sock, /sys, etc.)
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    container_name: cadvisor
-    profiles: ["linux"]
-    restart: unless-stopped
-    privileged: true
-    devices:
-      - /dev/kmsg
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-    ports:
-      - "8080:8080"
-    networks: [monitoring]
-
-  # --- Dashboards ---
+  # Visualise les métriques avec des dashboards
   grafana:
     image: grafana/grafana:10.4.0
     container_name: grafana
@@ -154,86 +75,30 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3001:3000"
+      - "3000:3000"
     depends_on:
       - prometheus
     networks: [monitoring]
 
-  # --- Tracing distribue ---
-  jaeger:
-    image: jaegertracing/all-in-one:1.55
-    container_name: jaeger
+  # Reçoit les alertes de Prometheus et les envoie sur Discord ou email
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
     restart: unless-stopped
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
-    ports:
-      - "16686:16686"
-      - "4317:4317"
-      - "4318:4318"
-    networks: [monitoring]
-
-  # --- ELK Stack (logs) ---
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.0
-    container_name: elasticsearch
-    restart: unless-stopped
-    environment:
-      discovery.type: single-node
-      xpack.security.enabled: "false"
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
     volumes:
-      - es_data:/usr/share/elasticsearch/data
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
     ports:
-      - "9200:9200"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
+      - "9093:9093"
     networks: [monitoring]
-
-  logstash:
-    image: docker.elastic.co/logstash/logstash:8.13.0
-    container_name: logstash
-    restart: unless-stopped
-    volumes:
-      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
-      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
-    ports:
-      - "5000:5000/tcp"
-      - "9600:9600"
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    networks: [monitoring]
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:8.13.0
-    container_name: kibana
-    restart: unless-stopped
-    environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-    ports:
-      - "5601:5601"
-    depends_on:
-      elasticsearch:
-        condition: service_healthy
-    networks: [monitoring]
-
-###############################################################################
-# Volumes & networks
-###############################################################################
 
 volumes:
-  db_data:
   prometheus_data:
-  alertmanager_data:
   grafana_data:
-  es_data:
+  alertmanager_data:
 
 networks:
   monitoring:

@@ -1,11 +1,16 @@
+###############################################################################
+# Prometheus - Configuration principale
+#
+# Prometheus collecte les métriques en "scrapant" (interrogeant) les exporters
+# toutes les 30 secondes.
+###############################################################################
+
 global:
-  scrape_interval: 15s
-  evaluation_interval: 15s
-  external_labels:
-    monitor: 'devops-monitoring'
+  scrape_interval: 30s        # fréquence de collecte
+  evaluation_interval: 30s    # fréquence d'évaluation des règles d'alerte
 
 rule_files:
-  - /etc/prometheus/alerts/alerts.yml
+  - /etc/prometheus/alerts.yml
 
 alerting:
   alertmanagers:
@@ -14,23 +19,36 @@ alerting:
             - alertmanager:9093
 
 scrape_configs:
+
+  # Prometheus se surveille lui-même
   - job_name: 'prometheus'
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'backend'
-    metrics_path: /metrics
-    static_configs:
-      - targets: ['backend:8000']
-
+  # Métriques système du serveur (CPU, RAM, disque)
   - job_name: 'node-exporter'
     static_configs:
       - targets: ['node-exporter:9100']
 
-  - job_name: 'cadvisor'
+  # Sondes HTTP des sites clients
+  # Pour ajouter un site : ajouter une ligne sous targets
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
     static_configs:
-      - targets: ['cadvisor:8080']
-
-  - job_name: 'alertmanager'
-    static_configs:
-      - targets: ['alertmanager:9093']
+      - targets:
+          # --- SITES DES CLIENTS À SURVEILLER ---
+          # Remplacer par les vrais sites de l'agence
+          - https://example.com
+          - https://wikipedia.org
+          - https://github.com
+    relabel_configs:
+      # Astuce : on récupère l'URL du site comme label "instance"
+      # pour l'afficher proprement dans Grafana
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115

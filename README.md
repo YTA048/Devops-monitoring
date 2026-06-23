@@ -1,199 +1,118 @@
-# DevOps Monitoring Platform
+# Kit de monitoring — Agence web
 
-Plateforme de monitoring et d'observabilité **clé en main**, basée sur une stack DevOps moderne et entièrement conteneurisée.
+Outil de surveillance pour une agence web qui héberge les sites de ses clients.
 
-> Les 3 piliers de l'observabilité : **métriques** + **logs** + **traces**, dans une seule stack lancée en `docker compose up`.
+## Ce que ça fait
 
----
-
-## Stack technique
-
-| Couche | Technologie |
-|--------|-------------|
-| Backend | FastAPI 0.110 (Python 3.11), instrumenté Prometheus + OpenTelemetry |
-| Frontend | React 18 + Vite, Chart.js, React Router |
-| Base de données | PostgreSQL 15 |
-| Métriques | Prometheus + node-exporter + cAdvisor |
-| Dashboards | Grafana 10 (datasources et dashboards provisionnés automatiquement) |
-| Tracing | Jaeger all-in-one (OTLP gRPC) |
-| Logs | Elasticsearch + Logstash + Kibana 8.13 |
-| Alerting | AlertManager |
-| IaC | Terraform >= 1.5 (AWS : VPC + EC2 t3.micro) |
-| CI/CD | GitHub Actions (pylint + ruff + pytest + Docker build + Trivy) |
-
----
+| Besoin | Réponse technique |
+|--------|-------------------|
+| Est-ce que les sites des clients marchent ? | **Blackbox Exporter** sonde chaque URL toutes les 30 secondes |
+| Est-ce qu'ils sont rapides ? | Prometheus mesure le **temps de réponse** de chaque site |
+| Est-ce que le serveur va bien ? | **Node Exporter** expose le CPU, la RAM et le disque |
+| Alerte quand un site tombe | **Alertmanager** envoie une notification Discord en moins de 2 minutes |
 
 ## Architecture
 
 ```
-                      ┌──────────────┐
-   utilisateur ────▶  │  Frontend    │  React + nginx (port 3000)
-                      └──────┬───────┘
-                             │ REST + JWT
-                      ┌──────▼───────┐
-                      │   Backend    │  FastAPI (port 8000)
-                      └──┬─────┬─────┴──────┐
-          /metrics        │     │ logs JSON │ traces OTLP
-                          │     │           │
-                ┌─────────▼─┐ ┌─▼────────┐ ┌▼─────────┐
-                │Prometheus │ │ Logstash │ │  Jaeger  │
-                └─────┬─────┘ └────┬─────┘ └──────────┘
-                      │            │
-                ┌─────▼─────┐ ┌────▼─────────┐ ┌────────┐
-                │  Grafana  │ │Elasticsearch │ │ Kibana │
-                └───────────┘ └──────────────┘ └────────┘
-                      │
-                ┌─────▼────────┐
-                │ AlertManager │
-                └──────────────┘
+                   ┌─────────────────────────────┐
+Sites clients ◄──  │  blackbox-exporter (port 9115) │  sonde HTTP toutes les 30s
+                   └──────────────┬──────────────┘
+                                  │ métriques
+Serveur Linux ──►  node-exporter  │  (CPU, RAM, disque)
+                                  │
+                   ┌──────────────▼──────────────┐
+                   │     prometheus (port 9090)   │  collecte + stockage
+                   └──────┬───────────────┬───────┘
+                          │               │ alertes
+             ┌────────────▼───┐   ┌───────▼──────────┐
+             │ grafana (:3000) │   │ alertmanager(:9093)│
+             │  dashboards     │   │  → Discord/email  │
+             └────────────────┘   └──────────────────┘
 ```
-
----
 
 ## Démarrage rapide
 
 ```bash
-git clone <ce-repo>
-cd devops-monitoring
-cp .env.example .env       # editer avec vos vrais Discord webhook / passwords
+# 1. Copier le fichier de configuration
+cp .env.example .env
+# Éditer .env : renseigner le webhook Discord
 
-# Sur Windows / macOS (Docker Desktop)
+# 2. Lancer la stack
 docker compose up -d
 
-# Sur Linux (tout, y compris node-exporter + cAdvisor)
-docker compose --profile linux up -d
+# 3. Ouvrir Grafana
+# http://localhost:3000   login: admin / admin
 ```
 
-> **Note Windows/macOS** : `node-exporter` et `cAdvisor` nécessitent des mounts Linux (`/proc`, `/sys`, `/var/run/docker.sock` avec propagation `rslave`) qui n'existent pas sur ces OS. Ils sont donc derrière un profile `linux` et activés uniquement via `--profile linux`. Sur Windows/macOS, Prometheus marquera ces 2 targets DOWN — c'est attendu.
+> **Note Linux :** `node-exporter` nécessite les montages `/proc` et `/sys` du système hôte.
+> Sur Windows/macOS (Docker Desktop), les métriques serveur ne seront pas disponibles — c'est normal.
 
-Compter ~2 minutes au premier lancement (build images + warm-up Elasticsearch).
+## Services et URLs
 
-### URLs des services
+| Service | URL | Rôle |
+|---------|-----|------|
+| Grafana | http://localhost:3000 | Dashboards (admin/admin) |
+| Prometheus | http://localhost:9090 | Données brutes + alertes |
+| Alertmanager | http://localhost:9093 | Statut des notifications |
+| Blackbox Exporter | http://localhost:9115 | Résultats des sondes HTTP |
+| Node Exporter | http://localhost:9100/metrics | Métriques système brutes |
 
-| Service | URL | Login |
-|---------|-----|-------|
-| Frontend | http://localhost:3000 | `admin` / `admin123` |
-| Backend (API + /metrics) | http://localhost:8000 | — |
-| Prometheus | http://localhost:9090 | — |
-| Grafana | http://localhost:3001 | `admin` / `admin` |
-| AlertManager | http://localhost:9093 | — |
-| Jaeger UI | http://localhost:16686 | — |
-| Kibana | http://localhost:5601 | — |
-| node-exporter | http://localhost:9100/metrics | — |
-| cAdvisor | http://localhost:8080 | — |
+## Ajouter ou retirer un site à surveiller
 
-### Tester la plateforme
+Éditer `monitoring/prometheus.yml`, section `targets` :
+
+```yaml
+static_configs:
+  - targets:
+      - https://site-client-1.fr
+      - https://site-client-2.com
+      - https://nouveau-client.fr   # ← ajouter ici
+```
+
+Puis recharger Prometheus sans redémarrer :
 
 ```bash
-# Vérifier l'API
-curl http://localhost:8000/health
-
-# Lancer une vague de checks (génère métriques + logs + traces)
-for i in {1..20}; do curl -s http://localhost:8000/monitor > /dev/null; done
-
-# Provoquer une erreur (déclenche une alerte si répétée)
-curl http://localhost:8000/error-test
+curl -X POST http://localhost:9090/-/reload
 ```
 
-Puis ouvrir Grafana → dashboard "Backend Overview", Jaeger → service `devops-monitoring-backend`, Kibana → index pattern `logs-*`.
+## Simuler une panne (démo)
 
----
+```bash
+# Ajouter une URL qui ne répond pas dans prometheus.yml
+# ex: - https://site-inexistant-demo.xyz
+
+# Dans Prometheus http://localhost:9090/alerts
+# → l'alerte "SiteDown" passe en FIRING après 1 minute
+
+# Dans Discord → notification reçue
+```
 
 ## Structure du projet
 
 ```
 devops-monitoring/
-├── backend/                  # FastAPI app
-│   ├── app/                  # auth, logging, tracing modules
-│   ├── tests/                # tests pytest
-│   ├── main.py
-│   ├── requirements.txt
-│   ├── Dockerfile            # multi-stage, user non-root
-│   ├── pytest.ini
-│   └── .pylintrc
-├── frontend/pro-ui/          # React 18 + Vite app
-│   ├── src/                  # pages, components, hooks, api
-│   ├── Dockerfile            # multi-stage build → nginx
-│   ├── nginx.conf
-│   └── package.json
 ├── monitoring/
-│   ├── prometheus.yml
-│   ├── alerts/alerts.yml
-│   └── alertmanager/alertmanager.yml
+│   ├── prometheus.yml     # configuration Prometheus (cibles à surveiller)
+│   ├── alerts.yml         # règles d'alerte (site down, CPU élevé, etc.)
+│   ├── alertmanager.yml   # envoi des notifications (Discord, email)
+│   └── blackbox.yml       # configuration des sondes HTTP
 ├── grafana/
-│   ├── provisioning/         # datasources + dashboards.yml
-│   └── dashboards/           # JSON dashboards
-├── logstash/
-│   ├── config/logstash.yml
-│   └── pipeline/logstash.conf
-├── terraform/                # IaC AWS (VPC + EC2)
-│   ├── main.tf
-│   ├── terraform.tfvars.example
-│   └── README.md
-├── .github/workflows/ci.yml  # Pipeline CI/CD
-├── scripts/                  # Maintenance Git
-├── docs/
-│   ├── CDC.md
-│   └── architecture.md
-└── docker-compose.yml
+│   ├── provisioning/      # configuration automatique au démarrage
+│   └── dashboards/        # dashboard JSON (agence-web.json)
+├── docker-compose.yml     # déclaration des 5 services
+└── .env.example           # variables à renseigner (webhook Discord, etc.)
 ```
 
----
+## Comprendre chaque outil
 
-## CI/CD
+**Prometheus** collecte les métriques en interrogeant les exporters toutes les 30 secondes. Il stocke les données localement et évalue les règles d'alerte.
 
-Le pipeline GitHub Actions (`.github/workflows/ci.yml`) exécute à chaque push :
+**Blackbox Exporter** reçoit une URL, fait une requête HTTP GET, et expose deux métriques :
+- `probe_success` : 1 si le site répond (code 2xx), 0 sinon
+- `probe_duration_seconds` : temps de réponse en secondes
 
-1. **Lint** — `ruff` + `pylint` sur le code Python
-2. **Tests** — `pytest` avec couverture, upload du rapport
-3. **Build** — image Docker du backend, cache GitHub Actions
-4. **Security scan** — `Trivy` sur l'image Docker + le filesystem
-5. **Terraform validate** — `terraform fmt` + `terraform validate`
+**Node Exporter** lit les fichiers système Linux (`/proc`, `/sys`) et expose des métriques sur le CPU, la RAM, le disque, le réseau.
 
----
+**Grafana** se connecte à Prometheus comme source de données et affiche les métriques en graphiques. Les dashboards sont définis en JSON et chargés automatiquement au démarrage.
 
-## Déploiement AWS (Terraform)
-
-```bash
-cd terraform
-cp terraform.tfvars.example terraform.tfvars
-# éditer terraform.tfvars
-
-terraform init
-terraform plan
-terraform apply
-```
-
-Voir [terraform/README.md](terraform/README.md) pour les détails.
-
----
-
-## Tests
-
-```bash
-cd backend
-pip install -r requirements.txt
-pip install pytest pytest-cov httpx
-pytest --cov=. --cov-report=term
-```
-
----
-
-## Maintenance
-
-Pour nettoyer l'historique Git (supprimer `node_modules/` et `monitoring.db` de tous les commits passés), voir [scripts/README.md](scripts/README.md).
-
----
-
-## Documentation
-
-- [Cahier des charges (CDC)](docs/CDC.md)
-- [Architecture détaillée](docs/architecture.md)
-- [BC03-CP2 — Business Metrics & Capacity Planning](docs/business-metrics.md)
-- [Runbook tests end-to-end](docs/RUNBOOK.md)
-
----
-
-## Licence
-
-Projet académique — usage pédagogique.
+**Alertmanager** reçoit les alertes de Prometheus, les groupe pour éviter le spam, et les envoie sur Discord ou par email selon leur sévérité.
