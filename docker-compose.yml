@@ -1,5 +1,5 @@
 ###############################################################################
-# Kit de monitoring - Agence web
+# Kit de monitoring — Agence web
 #
 # Use case : surveiller les sites des clients, le serveur, et recevoir
 #            des alertes quand quelque chose ne va pas.
@@ -9,7 +9,7 @@
 #   - node-exporter      : métriques système du serveur (CPU, RAM, disque)
 #   - prometheus         : collecte et stocke toutes les métriques
 #   - grafana            : dashboards visuels
-#   - alertmanager       : envoie les alertes (Discord ou email)
+#   - alertmanager       : envoie les alertes par email
 ###############################################################################
 
 services:
@@ -76,7 +76,7 @@ services:
       - prometheus
     networks: [monitoring]
 
-  # Reçoit les alertes de Prometheus et les envoie sur Discord ou email
+  # Reçoit les alertes de Prometheus et les envoie par email Outlook
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: alertmanager
